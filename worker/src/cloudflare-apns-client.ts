@@ -7,6 +7,8 @@ export interface CloudflareApnsConfig {
   topic?: string;
 }
 
+const JWT_REUSE_SECONDS = 30 * 60;
+
 function trimLeadingZeroes(bytes: Uint8Array): Uint8Array {
   let start = 0;
   while (start < bytes.length - 1 && bytes[start] === 0) {
@@ -170,7 +172,11 @@ export class CloudflareApnsClient implements PushSender {
 
   private async getJwt(): Promise<string> {
     const iat = Math.floor(Date.now() / 1000);
-    if (this.cachedJwt && this.cachedJwt.iat === iat) {
+    if (
+      this.cachedJwt &&
+      iat >= this.cachedJwt.iat &&
+      iat - this.cachedJwt.iat < JWT_REUSE_SECONDS
+    ) {
       return this.cachedJwt.token;
     }
 

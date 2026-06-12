@@ -23,18 +23,29 @@ function isJsonContentType(contentType: string): boolean {
   return contentType.toLowerCase().startsWith("application/json");
 }
 
-function extractPathParams(c: Context): ParamMap {
+type PathParamResult =
+  | { ok: true; params: ParamMap }
+  | { ok: false; message: string };
+
+function extractPathParams(c: Context): PathParamResult {
   const params: ParamMap = {};
   const keys = ["device_key", "subtitle", "title", "body"] as const;
 
   for (const key of keys) {
     const value = c.req.param(key);
     if (value) {
-      params[key] = decodeURIComponent(value);
+      try {
+        params[key] = decodeURIComponent(value);
+      } catch (error) {
+        return {
+          ok: false,
+          message: `url path parse failed: ${getErrorMessage(error)}`,
+        };
+      }
     }
   }
 
-  return params;
+  return { ok: true, params };
 }
 
 function lowerCaseEntryMap(source: Iterable<[string, string]>): ParamMap {
@@ -190,7 +201,11 @@ async function routeDoPushV1(c: Context, options: PushRouteOptions) {
 
   Object.assign(params, lowerCaseEntryMap(new URL(c.req.url).searchParams.entries()));
   Object.assign(params, await parseFormData(c.req.raw));
-  Object.assign(params, extractPathParams(c));
+  const pathParams = extractPathParams(c);
+  if (!pathParams.ok) {
+    return c.json(failed(options.deps.now(), 400, pathParams.message), 400);
+  }
+  Object.assign(params, pathParams.params);
 
   const result = await pushOne(params, options);
   if (result.error) {
@@ -259,7 +274,11 @@ async function routeDoPushV2(c: Context, options: PushRouteOptions) {
   }
 
   Object.assign(params, lowerCaseEntryMap(new URL(c.req.url).searchParams.entries()));
-  Object.assign(params, extractPathParams(c));
+  const pathParams = extractPathParams(c);
+  if (!pathParams.ok) {
+    return c.json(failed(options.deps.now(), 400, pathParams.message), 400);
+  }
+  Object.assign(params, pathParams.params);
 
   let deviceKeys: string[] = [];
   if ("device_keys" in params) {

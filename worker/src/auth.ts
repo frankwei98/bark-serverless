@@ -17,6 +17,19 @@ function decodeBasicAuth(header: string | undefined): string | null {
   }
 }
 
+function timingSafeStringEqual(actual: string | null, expected: string): boolean {
+  if (actual === null) {
+    return false;
+  }
+
+  let diff = actual.length ^ expected.length;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+
+  return diff === 0;
+}
+
 function stripPrefix(pathname: string, prefix: string): string {
   const normalizedPrefix = normalizeUrlPrefix(prefix);
   if (normalizedPrefix === "/") {
@@ -61,7 +74,7 @@ export function createBasicAuthMiddleware(config: AppConfig): MiddlewareHandler 
     const decoded = decodeBasicAuth(c.req.header("authorization"));
     const expected = `${config.basicAuthUser ?? ""}:${config.basicAuthPassword ?? ""}`;
 
-    if (decoded !== expected) {
+    if (!timingSafeStringEqual(decoded, expected)) {
       c.status(418);
       c.header("content-type", "text/plain; charset=UTF-8");
       return c.body("I'm a teapot");
