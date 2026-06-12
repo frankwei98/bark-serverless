@@ -13,6 +13,8 @@ export interface PushAttempt {
   error?: Error;
 }
 
+const BATCH_PUSH_CONCURRENCY = 50;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -211,6 +213,39 @@ function readDeviceKeys(value: unknown): string[] | null {
   return null;
 }
 
+async function pushBatch(
+  deviceKeys: string[],
+  params: ParamMap,
+  options: PushRouteOptions,
+): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+
+  for (let i = 0; i < deviceKeys.length; i += BATCH_PUSH_CONCURRENCY) {
+    const chunk = deviceKeys.slice(i, i + BATCH_PUSH_CONCURRENCY);
+    const chunkRows = await Promise.all(
+      chunk.map(async (deviceKey) => {
+        const nextParams = { ...params, device_key: deviceKey };
+        const attempt = await pushOne(nextParams, options);
+
+        const row: Record<string, unknown> = {
+          code: attempt.code,
+          device_key: deviceKey,
+        };
+
+        if (attempt.error) {
+          row.message = attempt.error.message;
+        }
+
+        return row;
+      }),
+    );
+
+    rows.push(...chunkRows);
+  }
+
+  return rows;
+}
+
 async function routeDoPushV2(c: Context, options: PushRouteOptions) {
   let params: ParamMap = {};
 
@@ -261,23 +296,7 @@ async function routeDoPushV2(c: Context, options: PushRouteOptions) {
     );
   }
 
-  const result = await Promise.all(
-    deviceKeys.map(async (deviceKey) => {
-      const nextParams = { ...params, device_key: deviceKey };
-      const attempt = await pushOne(nextParams, options);
-
-      const row: Record<string, unknown> = {
-        code: attempt.code,
-        device_key: deviceKey,
-      };
-
-      if (attempt.error) {
-        row.message = attempt.error.message;
-      }
-
-      return row;
-    }),
-  );
+  const result = await pushBatch(deviceKeys, params, options);
 
   return c.json(withData(options.deps.now(), result), 200);
 }

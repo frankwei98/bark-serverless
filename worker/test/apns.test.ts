@@ -174,4 +174,25 @@ describe("CloudflareApnsClient", () => {
     expect(payload.aps.alert).toBeUndefined();
     expect(payload.delete).toBe("1");
   });
+
+  it("maps APNs network failures to statusCode 500 errors", async () => {
+    installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("socket hang up");
+    }));
+
+    await expect(client.send(createMessage())).rejects.toMatchObject({
+      message: "APNs network error: socket hang up",
+      statusCode: 500,
+      reason: "NetworkError",
+    });
+  });
 });
