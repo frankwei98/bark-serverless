@@ -1,10 +1,10 @@
-# Worker Implementation Spec For Follow-on AI
+# Worker Validation Spec For Follow-on AI
 
 ## Mission
 
-Finish the TypeScript Cloudflare Worker migration in this repository without redesigning it.
+Validate and finish production hardening for the TypeScript Cloudflare Worker migration in this repository without redesigning it.
 
-Your job is to complete the missing production behavior so the Worker can replace the Go HTTP API for normal use. The scaffold and tests already exist. Treat them as the baseline contract, not as optional suggestions.
+The main implementation is already present: HTTP route compatibility, KV registry, MCP, and production APNs sending have been implemented. Your job is to verify the implementation against the Go behavior, deploy/preview it safely, and fix only concrete parity or production-readiness issues discovered by tests or smoke testing.
 
 ## Read This First
 
@@ -33,33 +33,25 @@ Already done:
 
 - `pnpm` project scaffold exists
 - Worker app boots
-- misc, auth, register, and push compatibility scaffolding exists
+- misc, auth, register, push, APNs, and MCP compatibility code exists
 - in-memory fakes exist for route tests
 - `pnpm check` passes
 - `pnpm test` passes
 - `pnpm build` dry-run bundles successfully
 - in this sandbox, Wrangler may emit an `EPERM` warning when writing `~/.wrangler/logs`; do not treat that alone as a build failure if bundling itself completed
-
-Not done:
-
-- production APNs sender
-- MCP endpoint behavior
-- MCP tests
-
-Current placeholder files:
-
-- `worker/src/cloudflare-apns-client.ts`
-- `worker/src/mcp.ts`
-- `worker/test/mcp.test.ts`
+- production KV `id` and `preview_id` are configured in `wrangler.toml`
+- `APNS_TOPIC`, `APNS_KEY_ID`, `APNS_TEAM_ID`, and `APNS_PRIVATE_KEY` are configured in `wrangler.toml` `[vars]`
+- two code review/fix passes have already been applied to APNs and MCP behavior
 
 ## Scope
 
 You are responsible for:
 
-- completing APNs production sending
-- completing MCP route behavior
-- adding or tightening tests for those features
-- fixing any parity gaps discovered while doing that work
+- verifying the current Worker behavior against the Go source and tests
+- configuring or confirming deployment environment bindings
+- running real Worker preview/staging smoke tests where possible
+- fixing concrete parity gaps discovered by tests, code review, or real-device smoke tests
+- adding focused tests for any bug you fix
 
 You are **not** responsible for:
 
@@ -68,6 +60,7 @@ You are **not** responsible for:
 - changing package manager away from `pnpm`
 - redesigning folder layout or dependency injection boundaries
 - “improving” public API behavior in ways that diverge from the Go implementation
+- reimplementing APNs or MCP from scratch without a specific failing case
 
 ## Mandatory Design Decisions
 
@@ -84,17 +77,24 @@ These decisions are already made. Do not reopen them unless a hard blocker makes
 
 ## Files You Should Edit
 
-Primary implementation files:
+Primary files to inspect:
 
 - `worker/src/cloudflare-apns-client.ts`
 - `worker/src/mcp.ts`
-- `worker/test/mcp.test.ts`
-
-Possible supporting edits if needed:
-
-- `worker/src/types.ts`
 - `worker/src/push.ts`
+- `worker/src/register.ts`
 - `worker/src/app.ts`
+- `worker/src/index.ts`
+- `worker/src/types.ts`
+- `wrangler.toml`
+- `worker/test/**/*.test.ts`
+
+Only edit implementation files when you have a concrete failing test, review finding, or smoke-test mismatch.
+
+Likely supporting edits if a real issue is found:
+
+- `worker/test/apns.test.ts`
+- `worker/test/mcp.test.ts`
 - `worker/test/helpers/fakes.ts`
 
 Do not rewrite unrelated files just because you prefer a different layout.
@@ -131,6 +131,13 @@ Take credentials from Worker env:
 
 Treat missing required credentials as configuration errors with explicit messages.
 
+Current deployment decision:
+
+- `APNS_TOPIC`, `APNS_KEY_ID`, and `APNS_TEAM_ID` can be plaintext Wrangler `[vars]` because they are already public in the upstream Bark codebase.
+- `APNS_PRIVATE_KEY` can also be supplied as a plaintext Worker var if this deployment intentionally follows upstream Bark's public key model, or as a Cloudflare secret if the operator prefers. The code reads either form through `env.APNS_PRIVATE_KEY`.
+- `APNS_PRIVATE_KEY` must be the full PKCS#8 `.p8`/PEM text, including `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`.
+- Do not pass only the base64 body and do not pass a DER byte string.
+
 ### JWT
 
 Create an ES256 JWT using Worker Web Crypto.
@@ -145,7 +152,7 @@ JWT payload:
 - `iss = APNS_TEAM_ID`
 - `iat = current unix seconds`
 
-Use PKCS#8 import logic for the `.p8` private key text.
+Use PKCS#8 import logic for the `.p8` private key text. Worker WebCrypto may return a raw 64-byte ECDSA signature; the JWT must use JOSE raw `r || s` signature bytes. If a runtime returns ASN.1 DER, normalize it to JOSE raw bytes before base64url encoding.
 
 ### Request
 
@@ -192,6 +199,8 @@ Custom fields:
 - custom field values must be stringified like Go `fmt.Sprintf("%v", v)`
 
 Important: do **not** reinterpret fields like `badge`, `level`, `volume`, `url`, `copy`, `image`, or `markdown` as APNs-native features unless the Go code already does so. In the Go implementation they are forwarded as custom fields, not special APNs fields.
+
+Important: numeric `delete=1` must trigger background push behavior just like string `delete="1"`.
 
 ### Error Mapping
 
@@ -255,12 +264,14 @@ Supported arguments:
 - The tool implementation must call into the existing push path semantics, not create a second notification pipeline.
 - Success result text should match the Go behavior: `Notification sent successfully`.
 - Failure result text should match the Go behavior shape: `Failed to send notification: <err> (code <n>)`.
+- Unknown tool names must return an MCP method/tool error and must not send any push.
+- `notifications/initialized` should return HTTP `204` with an empty body.
 
 ### Protocol approach
 
-Implement the minimal HTTP MCP request-response surface necessary for normal clients using non-streaming behavior.
+Keep the minimal HTTP MCP request-response surface necessary for normal clients using non-streaming behavior.
 
-Preferred practical approach:
+Current practical approach:
 
 1. support initialization / server info response
 2. support tool listing for `notify`
@@ -277,9 +288,10 @@ Start from the current tests. Do not weaken them.
 
 You must:
 
-- replace `worker/test/mcp.test.ts` todos with executable tests
-- add focused APNs sender tests if the sender logic becomes non-trivial
+- keep `worker/test/mcp.test.ts` executable tests intact
+- keep `worker/test/apns.test.ts` executable tests intact
 - keep existing auth/register/push/misc tests green
+- add focused regression tests for any issue you fix
 
 Acceptable additional tests:
 
@@ -291,21 +303,27 @@ Acceptable additional tests:
 Unacceptable shortcuts:
 
 - deleting tests
-- converting failing behavior into snapshots
+- converting failing behavior into broad snapshots
 - broadening assertions so much that compatibility is no longer checked
 
 ## Execution Order
 
 1. Read the source-of-truth files.
-2. Implement `worker/src/cloudflare-apns-client.ts`.
-3. Add tests for APNs error mapping if needed.
-4. Implement `worker/src/mcp.ts`.
-5. Replace MCP `todo` tests with real tests.
-6. Run:
+2. Run:
    - `pnpm test`
    - `pnpm check`
    - `pnpm build`
-7. Fix any discovered parity issues without redesigning the scaffold.
+3. Inspect the current diff against the Go base if reviewing migration scope:
+   - `git diff 478659ecdd75a38185d7275d154d78e9c2b752b4`
+4. Confirm Worker environment bindings:
+   - `DEVICE_REGISTRY`
+   - `APNS_PRIVATE_KEY`
+   - `APNS_KEY_ID`
+   - `APNS_TEAM_ID`
+   - `APNS_TOPIC`
+5. Deploy or preview the Worker and run smoke tests against real routes.
+6. Fix any discovered parity issues without redesigning the scaffold.
+7. Re-run `pnpm test`, `pnpm check`, and `pnpm build`.
 
 ## Guardrails
 
@@ -327,6 +345,9 @@ All of the following must be true:
 - `pnpm check` passes
 - `pnpm build` passes
 - no skipped/todo tests remain unless there is a clearly documented external blocker
+- Worker environment has a valid `DEVICE_REGISTRY` KV binding
+- Worker environment has a valid `APNS_PRIVATE_KEY` binding in PKCS#8 PEM format
+- real-device smoke testing has either passed or produced a concrete tracked blocker
 
 ## If You Think Something Is Wrong
 
