@@ -166,6 +166,18 @@ describe("push routes", () => {
     });
   });
 
+  it("returns 400 when path params contain invalid percent encoding", async () => {
+    const { app } = createHarness();
+
+    const response = await app.request("http://example.com/alpha/title/subtitle/%E0%A4%A");
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: expect.stringContaining("url path parse failed"),
+    });
+  });
+
   it("supports batch push using a JSON array", async () => {
     const { app, sender } = createHarness({
       registrySeed: {

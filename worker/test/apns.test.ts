@@ -41,6 +41,7 @@ function installCryptoStub(signature: ArrayBuffer = makeRawSignature()) {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -113,6 +114,37 @@ describe("CloudflareApnsClient", () => {
     const binary = atob(signature.replace(/-/g, "+").replace(/_/g, "/"));
 
     expect(binary.length).toBe(64);
+  });
+
+  it("reuses APNs provider JWTs within the refresh window", async () => {
+    const { sign } = installCryptoStub(makeRawSignature());
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1_700_000_000_000);
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(createMessage());
+    now.mockReturnValue(1_700_000_000_000 + 29 * 60 * 1000);
+    await client.send(createMessage());
+    now.mockReturnValue(1_700_000_000_000 + 30 * 60 * 1000);
+    await client.send(createMessage());
+
+    expect(sign).toHaveBeenCalledTimes(2);
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const firstAuth = (calls[0]![1].headers as Record<string, string>).authorization;
+    const secondAuth = (calls[1]![1].headers as Record<string, string>).authorization;
+    const thirdAuth = (calls[2]![1].headers as Record<string, string>).authorization;
+
+    expect(secondAuth).toBe(firstAuth);
+    expect(thirdAuth).not.toBe(firstAuth);
   });
 
   it("also accepts DER ECDSA signatures from runtimes that return ASN.1", async () => {
