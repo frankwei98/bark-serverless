@@ -122,6 +122,17 @@ async function handleMcpRequest(
       const params = body.params as
         | { name?: string; arguments?: Record<string, unknown> }
         | undefined;
+      if (params?.name !== "notify") {
+        return {
+          jsonrpc: "2.0",
+          id: body.id,
+          error: {
+            code: -32601,
+            message: `Method not found: unknown tool ${params?.name ?? "undefined"}`,
+          },
+        };
+      }
+
       const args = { ...(params?.arguments ?? {}) } as Record<string, unknown>;
 
       let deviceKey: string | undefined;
