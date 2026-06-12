@@ -1,72 +1,235 @@
-# Bark
+# Bark Serverless Worker
 
-<img src="https://wx3.sinaimg.cn/mw690/0060lm7Tly1g0nfnjjxbbj30sg0sg757.jpg" width=200px height=200px />
+This repository is a `TypeScript + Hono + Cloudflare Worker` reimplementation of the original Go `bark-server`.
 
-[Bark](https://github.com/Finb/Bark) is an iOS App which allows you to push customed notifications to your iPhone.
+The goal is public HTTP API compatibility with the Bark iOS app and existing Bark clients, while replacing the self-hosted Go server model with a serverless deployment on Cloudflare Workers.
 
-## Installation
+## Status
 
-### For Docker User
+The Worker implementation is usable in production for the main Bark flows.
 
-![Docker Automated build](https://img.shields.io/docker/automated/finab/bark-server.svg) ![Image Size](https://img.shields.io/docker/image-size/finab/bark-server?sort=date) ![License](https://img.shields.io/github/license/finb/bark-server)
+- Legacy push routes are working.
+- `POST /push` is working.
+- `ALL /mcp` and `ALL /mcp/:device_key` are working.
+- APNs delivery has been validated with real-device smoke tests.
+- Compatibility behavior is covered by automated contract tests.
 
-The docker image is already available, you can use the following command to run the bark server:
+Current validation coverage:
 
-``` sh
-docker run -dt --name bark -p 8080:8080 -v `pwd`/bark-data:/data finab/bark-server
+- `42` automated tests passing with `pnpm test`
+- TypeScript checks passing with `pnpm check`
+- Wrangler dry-run build passing with `pnpm build`
+- Live smoke tests confirmed for legacy push, `/push`, `/mcp`, and `/mcp/:device_key`
+
+## Migration Approach
+
+The migration strategy was to preserve HTTP behavior first, not to preserve the original process model.
+
+Key decisions:
+
+- Keep the public API shape compatible with the Go server.
+- Replace Go runtime and storage with Worker-native components.
+- Use contract-style tests to lock route behavior, parsing precedence, auth semantics, and push side effects.
+- Prefer explicit compatibility over framework magic.
+
+The source of truth for ambiguous behavior remains the original Go implementation in this repository.
+
+## Architecture
+
+- Runtime: Cloudflare Worker
+- Router: Hono
+- Storage: Cloudflare KV
+- Push transport: APNs over `fetch` + Worker Web Crypto
+- Package manager: `pnpm`
+- Tests: Vitest
+
+Device registration is stored as `device_key -> device_token` in KV. Push sending is abstracted behind interfaces so route behavior can be tested without real APNs or real KV.
+
+## API Compatibility
+
+Implemented route surface:
+
+- `GET /`
+- `GET /ping`
+- `GET /healthz`
+- `GET /info`
+- `GET /register`
+- `POST /register`
+- `GET /register/:device_key`
+- `POST /push`
+- `GET|POST /:device_key`
+- `GET|POST /:device_key/:body`
+- `GET|POST /:device_key/:title/:body`
+- `GET|POST /:device_key/:title/:subtitle/:body`
+- `ALL /mcp`
+- `ALL /mcp/:device_key`
+
+Compatibility behaviors intentionally preserved:
+
+- JSON `Content-Type` uses the V2 `/push` parser. Non-JSON requests use the legacy parser.
+- Path params override query and body params.
+- Legacy `sound` values are normalized to `*.caf`.
+- Empty alerts are converted to `Empty Message`.
+- Auth mode still returns plain-text `418 I'm a teapot`.
+- `/ping`, `/register`, and `/healthz` still bypass auth.
+- Invalid APNs device tokens trigger key cleanup.
+- Batch push keeps input order in its per-device results.
+- MCP generic and device-specific endpoints preserve the original `notify` tool behavior.
+
+Compatibility status:
+
+- The main production API surface is implemented and validated.
+- The project targets HTTP/API compatibility, not byte-for-byte internal parity.
+- Rare legacy edge cases still depend on test coverage and Go-source parity review rather than exhaustive production soak testing.
+
+## Tradeoffs Vs Original Go Server
+
+What is preserved:
+
+- Bark HTTP API
+- Legacy push URL patterns
+- `/push` V2 semantics
+- MCP `notify` integration
+- APNs payload behavior that existing Bark clients rely on
+
+What is intentionally not preserved:
+
+- Go CLI flags and standalone binary packaging
+- `bbolt` local file storage
+- MySQL backend mode
+- Local TLS listeners
+- Unix socket mode
+- Long-lived process concerns such as connection pool tuning from the Go runtime
+
+Cloudflare-specific tradeoffs:
+
+- KV is eventually consistent, unlike local in-process storage.
+- Deployment becomes much simpler, but all runtime state must fit the Worker model.
+- MCP is implemented as request-response HTTP only; no streaming transport is provided.
+
+## APNs Configuration
+
+The Worker reads these bindings:
+
+- `APNS_TOPIC`
+- `APNS_KEY_ID`
+- `APNS_TEAM_ID`
+- `APNS_PRIVATE_KEY`
+
+`APNS_PRIVATE_KEY` must be the full PKCS#8 PEM text, including:
+
+```text
+-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
 ```
 
-You can also use the GitHub Container Registry image:
+The current repository keeps the upstream Bark app APNs configuration for compatibility with the public Bark iOS app.
 
-``` sh
-docker run -dt --name bark -p 8080:8080 -v `pwd`/bark-data:/data ghcr.io/finb/bark-server
-```
+Important note:
 
-If you use the docker-compose tool, you can copy docker-copose.yaml under this project to any directory and run it:
+- These `APNS_*` values are intentionally public in the upstream Bark project and author documentation. They are not accidental secret leakage in this repository.
+- Source: [Bark服务端部署文档](https://day.app/2018/06/bark-server-document/)
+- If you are deploying for a different app or topic, replace all `APNS_*` values accordingly.
 
-``` sh
-mkdir bark-server && cd bark-server
-curl -sL https://github.com/Finb/bark-server/raw/master/deploy/docker-compose.yaml > docker-compose.yaml
-docker compose up -d
-```
+## Deploy To Cloudflare Worker
 
-### For General User 
+### Prerequisites
 
-- 1、Download precompiled binaries from the [releases](https://github.com/Finb/bark-server/releases) page
-- 2、Add executable permissions to the bark-server binary: `chmod +x bark-server`
-- 3、Start bark-server: `./bark-server --addr 0.0.0.0:8080 --data ./bark-data`
-- 4、Test the server: `curl localhost:8080/ping`
+- Node.js 20+
+- `pnpm`
+- A Cloudflare account with Workers and KV enabled
+- Wrangler authenticated via `pnpm exec wrangler login`
 
-**Note: Bark-server uses the `/data` directory to store data by default. Make sure that bark-server has permission to write to the `/data` directory, otherwise use the `-d` option to change the directory.**
-
-### For Developer
-
-Developers can compile this project by themselves, and the dependencies required for compilation:
-
-- Golang 1.18+
-- Go Mod Enabled(env `GO111MODULE=on`)
-- Go Mod Proxy Enabled(env `GOPROXY=https://goproxy.cn`)
-- [go-task](https://taskfile.dev/installation/) Installed
-
-Run the following command to compile this project:
+### 1. Install dependencies
 
 ```sh
-# Cross compile all platforms
-task
-
-# Compile the specified platform (please refer to Taskfile.yaml)
-task linux_amd64
-task linux_amd64_v3
+pnpm install
 ```
 
-**Note: The linux amd64 v3 architecture was added in go 1.18, see [https://github.com/golang/go/wiki/MinimumRequirements#amd64](https://github.com/golang/go/wiki/MinimumRequirements#amd64)**
+### 2. Create KV namespaces
 
-### Use MySQL instead of Bbolt
+Create a production KV namespace:
 
-Just run the server with `-dsn=user:pass@tcp(mysql_host)/bark`, it will use MySQL instead of file database Bbolt
+```sh
+pnpm exec wrangler kv namespace create DEVICE_REGISTRY
+```
 
-## Others
+Create a preview KV namespace if you want preview isolation:
 
-* [API_V2.md](docs/API_V2.md).
-* [MCP.md](docs/MCP.md).
+```sh
+pnpm exec wrangler kv namespace create DEVICE_REGISTRY --preview
+```
 
+Then update `wrangler.toml`:
+
+- `name`
+- `[[kv_namespaces]].id`
+- `[[kv_namespaces]].preview_id`
+
+Using the same namespace ID for both `id` and `preview_id` is valid, but separate namespaces are safer if you do not want preview traffic touching production registrations.
+
+### 3. Configure Worker variables
+
+Update the `[vars]` section in `wrangler.toml`:
+
+- `APNS_TOPIC`
+- `APNS_KEY_ID`
+- `APNS_TEAM_ID`
+- `APNS_PRIVATE_KEY`
+
+If you prefer, `APNS_PRIVATE_KEY` can be stored as a Cloudflare secret instead of plaintext config:
+
+```sh
+pnpm exec wrangler secret put APNS_PRIVATE_KEY
+```
+
+### 4. Verify locally
+
+```sh
+pnpm test
+pnpm check
+pnpm build
+```
+
+`pnpm build` runs `wrangler deploy --dry-run`.
+
+### 5. Deploy
+
+```sh
+pnpm exec wrangler deploy
+```
+
+After deployment, you can smoke-test the service:
+
+```sh
+curl https://<your-worker>.workers.dev/ping
+curl "https://<your-worker>.workers.dev/<device_key>/Title/Hello"
+```
+
+## MCP Usage
+
+The Worker exposes Bark push as an MCP tool so AI agents can notify you when tasks finish or need attention.
+
+- `POST /mcp` exposes `notify` and requires `device_key`
+- `POST /mcp/:device_key` exposes `notify` without requiring `device_key`
+
+This is useful for long-running agents such as Claude Code or Codex that should send a Bark notification at task completion.
+
+## Development
+
+Useful commands:
+
+```sh
+pnpm install
+pnpm test
+pnpm check
+pnpm dev
+pnpm build
+```
+
+## API Docs
+
+- [API V2](docs/API_V2.md)
+- [MCP](docs/MCP.md)
+- Upstream project: [Finb/Bark](https://github.com/Finb/Bark)
