@@ -7,6 +7,81 @@ export interface CloudflareApnsConfig {
   topic?: string;
 }
 
+function trimLeadingZeroes(bytes: Uint8Array): Uint8Array {
+  let start = 0;
+  while (start < bytes.length - 1 && bytes[start] === 0) {
+    start++;
+  }
+  return bytes.slice(start);
+}
+
+function leftPad(bytes: Uint8Array, length: number): Uint8Array {
+  if (bytes.length > length) {
+    throw new Error(`ECDSA coordinate too large: expected <= ${length} bytes`);
+  }
+
+  const padded = new Uint8Array(length);
+  padded.set(bytes, length - bytes.length);
+  return padded;
+}
+
+function derLength(bytes: Uint8Array, offset: number): { length: number; next: number } {
+  const first = bytes[offset];
+  if ((first & 0x80) === 0) {
+    return { length: first, next: offset + 1 };
+  }
+
+  const octets = first & 0x7f;
+  if (octets === 0 || octets > 4) {
+    throw new Error("Invalid DER length encoding");
+  }
+
+  let length = 0;
+  for (let i = 0; i < octets; i++) {
+    length = (length << 8) | bytes[offset + 1 + i];
+  }
+
+  return { length, next: offset + 1 + octets };
+}
+
+function derSignatureToJose(signature: ArrayBuffer): Uint8Array {
+  const bytes = new Uint8Array(signature);
+  let offset = 0;
+
+  if (bytes[offset++] !== 0x30) {
+    throw new Error("Invalid DER signature: expected SEQUENCE");
+  }
+
+  const seq = derLength(bytes, offset);
+  offset = seq.next;
+  const seqEnd = offset + seq.length;
+
+  if (bytes[offset++] !== 0x02) {
+    throw new Error("Invalid DER signature: expected INTEGER for r");
+  }
+  const rLen = derLength(bytes, offset);
+  offset = rLen.next;
+  const r = bytes.slice(offset, offset + rLen.length);
+  offset += rLen.length;
+
+  if (bytes[offset++] !== 0x02) {
+    throw new Error("Invalid DER signature: expected INTEGER for s");
+  }
+  const sLen = derLength(bytes, offset);
+  offset = sLen.next;
+  const s = bytes.slice(offset, offset + sLen.length);
+  offset += sLen.length;
+
+  if (offset !== seqEnd) {
+    throw new Error("Invalid DER signature: trailing bytes");
+  }
+
+  const jose = new Uint8Array(64);
+  jose.set(leftPad(trimLeadingZeroes(r), 32), 0);
+  jose.set(leftPad(trimLeadingZeroes(s), 32), 32);
+  return jose;
+}
+
 function base64url(data: ArrayBuffer | Uint8Array | string): string {
   let binary: string;
   if (typeof data === "string") {
@@ -80,7 +155,7 @@ export class CloudflareApnsClient implements PushSender {
       new TextEncoder().encode(signingInput),
     );
 
-    const jwt = `${signingInput}.${base64url(signature)}`;
+    const jwt = `${signingInput}.${base64url(derSignatureToJose(signature))}`;
     this.cachedJwt = { token: jwt, iat };
     return jwt;
   }
@@ -99,6 +174,7 @@ export class CloudflareApnsClient implements PushSender {
     const isDelete = message.extParams.delete === "1";
 
     const aps: Record<string, unknown> = { "mutable-content": 1 };
+    const payload: Record<string, unknown> = { aps };
 
     if (isDelete) {
       aps["content-available"] = 1;
@@ -107,7 +183,9 @@ export class CloudflareApnsClient implements PushSender {
       if (message.title.length > 0) alert.title = message.title;
       if (message.subtitle.length > 0) alert.subtitle = message.subtitle;
       if (message.body.length > 0) alert.body = message.body;
-      aps.alert = alert;
+      if (Object.keys(alert).length > 0) {
+        aps.alert = alert;
+      }
       aps.sound = message.sound;
       aps.category = "myNotificationCategory";
       if (message.extParams.group) {
@@ -116,7 +194,7 @@ export class CloudflareApnsClient implements PushSender {
     }
 
     for (const [key, value] of Object.entries(message.extParams)) {
-      aps[key.toLowerCase()] = String(value);
+      payload[key.toLowerCase()] = String(value);
     }
 
     const headers: Record<string, string> = {
@@ -138,7 +216,7 @@ export class CloudflareApnsClient implements PushSender {
       response = await fetch(url, {
         method: "POST",
         headers,
-        body: JSON.stringify(aps),
+        body: JSON.stringify(payload),
       });
     } catch (err) {
       const error = new Error(`APNs network error: ${err instanceof Error ? err.message : String(err)}`) as ApnsSendError;

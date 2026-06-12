@@ -213,4 +213,21 @@ describe("mcp compatibility", () => {
     expect(body.error!.code).toBe(-32601);
     expect(body.error!.message).toContain("Method not found");
   });
+
+  it("unknown tool name returns method not found instead of sending a push", async () => {
+    const harness = createHarness({
+      registrySeed: { "test-key": "test-token" },
+    });
+
+    const res = await jsonRpcRequest(harness.app, "/mcp", "tools/call", {
+      name: "not-notify",
+      arguments: { device_key: "test-key", body: "hello" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.code).toBe(-32601);
+    expect(body.error!.message).toContain("unknown tool");
+    expect(harness.sender.messages).toHaveLength(0);
+  });
 });
