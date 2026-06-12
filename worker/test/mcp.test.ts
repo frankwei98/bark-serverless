@@ -404,6 +404,15 @@ describe("mcp compatibility", () => {
     expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
   });
 
+  it("405 responses include MCP-Protocol-Version header", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", { method: "GET" });
+
+    expect(res.status).toBe(405);
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
+  });
+
   // --- Notification response status ---
 
   it("unknown notification returns 202 with empty body", async () => {
@@ -457,6 +466,40 @@ describe("mcp compatibility", () => {
     });
 
     expect(res.status).toBe(200);
+  });
+
+  it("unsupported MCP-Protocol-Version header returns 400", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "mcp-protocol-version": "2024-11-05",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.message).toContain("Unsupported protocol version");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
+  });
+
+  it("supported MCP-Protocol-Version header proceeds normally", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "mcp-protocol-version": "2025-03-26",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
   });
 
   // --- Origin header ---
@@ -545,6 +588,23 @@ describe("mcp compatibility", () => {
     );
 
     expect(res.status).toBe(200);
+  });
+
+  it("secret enabled still allows direct calls without session header", async () => {
+    const harness = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+      registrySeed: { alpha: "token-alpha" },
+    });
+
+    const res = await jsonRpcRequest(harness.app, "/mcp", "tools/call", {
+      name: "notify",
+      arguments: { device_key: "alpha", body: "hello" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.isError).toBeUndefined();
+    expect(harness.sender.messages).toHaveLength(1);
   });
 
   it("/mcp/:device_key session cannot access /mcp", async () => {
@@ -696,15 +756,29 @@ describe("mcp compatibility", () => {
     expect(body.error!.message).toContain("not enabled");
   });
 
-  it("session is required when secret is configured", async () => {
-    const { app } = createHarness({
-      config: { mcpSessionSecret: "test-secret" },
-    });
+  it("initialize rejects mismatched protocol header and params", async () => {
+    const { app } = createHarness();
 
-    const res = await jsonRpcRequest(app, "/mcp", "tools/list");
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "mcp-protocol-version": "2025-03-26",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "test", version: "1.0" },
+        },
+      }),
+    });
 
     expect(res.status).toBe(400);
     const body = await parseMcpResponse(res);
-    expect(body.error!.message).toContain("Mcp-Session-Id header required");
+    expect(body.error!.message).toContain("Protocol version mismatch");
   });
 });

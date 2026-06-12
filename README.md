@@ -122,9 +122,9 @@ Cloudflare-specific tradeoffs:
 
 - KV is eventually consistent, unlike local in-process storage.
 - Deployment becomes much simpler, but all runtime state must fit the Worker model.
-- MCP is implemented as request-response HTTP only; no streaming transport is provided.
+- MCP follows the modern Streamable HTTP transport semantics, but this Worker only returns JSON responses and does not expose an SSE stream.
 
-> **中文说明：** 有意不保留的部分：Go CLI 参数、独立二进制打包、`bbolt` 本地存储、MySQL 后端模式、本地 TLS 监听、Unix socket 模式、长连接进程相关调优。Cloudflare 特有权衡：KV 是最终一致性的（不同于本地进程内存储）；部署更简单，但所有运行时状态必须适配 Worker 模型；MCP 仅实现请求-响应 HTTP，不提供流式传输。
+> **中文说明：** 有意不保留的部分：Go CLI 参数、独立二进制打包、`bbolt` 本地存储、MySQL 后端模式、本地 TLS 监听、Unix socket 模式、长连接进程相关调优。Cloudflare 特有权衡：KV 是最终一致性的（不同于本地进程内存储）；部署更简单，但所有运行时状态必须适配 Worker 模型；MCP 采用现代 Streamable HTTP 语义，但当前只返回 JSON，不提供 SSE 流。
 
 ## APNs Configuration
 
@@ -257,10 +257,15 @@ The Worker exposes Bark push as an MCP tool so AI agents can notify you when tas
 
 - `POST /mcp` exposes `notify` and requires `device_key`
 - `POST /mcp/:device_key` exposes `notify` without requiring `device_key`
+- `GET` and `DELETE` on MCP endpoints return `405 Method Not Allowed`
+
+The transport follows the MCP Streamable HTTP rules for version negotiation and optional sessions, but this deployment model intentionally does not keep a standalone SSE stream open.
+
+If `MCP_SESSION_SECRET` is configured, `initialize` returns `Mcp-Session-Id` and clients may reuse it on later requests. Existing clients may still skip `initialize` and call tools directly for backward compatibility.
 
 This is useful for long-running agents such as Claude Code or Codex that should send a Bark notification at task completion.
 
-> **中文说明：** Worker 将 Bark 推送暴露为 MCP 工具，供 AI 代理在任务完成或需要关注时通知你。`POST /mcp` 需要 `device_key`，`POST /mcp/:device_key` 则不需要。适用于 Claude Code 或 Codex 等长时间运行的代理在任务完成时发送 Bark 通知。
+> **中文说明：** Worker 将 Bark 推送暴露为 MCP 工具，供 AI 代理在任务完成或需要关注时通知你。`POST /mcp` 需要 `device_key`，`POST /mcp/:device_key` 则不需要；MCP 端点的 `GET` / `DELETE` 会返回 `405 Method Not Allowed`。传输层遵循现代 Streamable HTTP 的版本协商和可选 session 语义，但当前部署不会保持独立 SSE 流。若配置 `MCP_SESSION_SECRET`，`initialize` 会返回 `Mcp-Session-Id` 供后续请求复用；为了兼容现有客户端，仍允许跳过 `initialize` 直接调用工具。
 
 ## Development ｜ 开发
 
