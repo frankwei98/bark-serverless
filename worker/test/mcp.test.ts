@@ -29,10 +29,29 @@ function jsonRpcRequest(
   method: string,
   params?: Record<string, unknown>,
   id: number | string | null | undefined = 1,
+  extraHeaders?: Record<string, string>,
 ) {
   const body: Record<string, unknown> = { jsonrpc: "2.0", method, params };
   if (id !== undefined) {
     body.id = id;
+  }
+
+  return app.request(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...extraHeaders },
+    body: JSON.stringify(body),
+  });
+}
+
+function jsonRpcNotification(
+  app: ReturnType<typeof createHarness>["app"],
+  url: string,
+  method: string,
+  params?: Record<string, unknown>,
+) {
+  const body: Record<string, unknown> = { jsonrpc: "2.0", method };
+  if (params) {
+    body.params = params;
   }
 
   return app.request(url, {
@@ -51,7 +70,7 @@ describe("mcp compatibility", () => {
     const { app } = createHarness();
 
     const res = await jsonRpcRequest(app, "/mcp", "initialize", {
-      protocolVersion: "2024-11-05",
+      protocolVersion: "2025-06-18",
       capabilities: {},
       clientInfo: { name: "test", version: "1.0" },
     });
@@ -60,10 +79,11 @@ describe("mcp compatibility", () => {
     const body = await parseMcpResponse(res);
     expect(body.jsonrpc).toBe("2.0");
     expect(body.id).toBe(1);
-    expect(body.result!.protocolVersion).toBe("2024-11-05");
+    expect(body.result!.protocolVersion).toBe("2025-06-18");
     expect(body.result!.capabilities).toBeDefined();
     expect(body.result!.serverInfo!.name).toBe("Bark MCP Server");
     expect(body.result!.serverInfo!.version).toBe("test-version");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
   });
 
   it("tools/list returns the notify tool", async () => {
@@ -180,12 +200,12 @@ describe("mcp compatibility", () => {
     expect(body.result!.content![0].text).toContain("BadDeviceToken");
   });
 
-  it("notifications/initialized returns 204 with no body", async () => {
+  it("notifications/initialized returns 202 with no body", async () => {
     const { app } = createHarness();
 
-    const res = await jsonRpcRequest(app, "/mcp", "notifications/initialized");
+    const res = await jsonRpcNotification(app, "/mcp", "notifications/initialized");
 
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(202);
     const text = await res.text();
     expect(text).toBe("");
   });
@@ -257,13 +277,13 @@ describe("mcp compatibility", () => {
     expect(body.error!.message).toContain("Method not found");
   });
 
-  it("normalizes missing ids to null in MCP error responses", async () => {
+  it("normalizes non-standard ids to null in MCP error responses", async () => {
     const { app } = createHarness();
 
     const res = await app.request("/mcp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", method: "unknown/method" }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: true, method: "unknown/method" }),
     });
 
     expect(res.status).toBe(200);
@@ -288,5 +308,403 @@ describe("mcp compatibility", () => {
     expect(body.error!.code).toBe(-32601);
     expect(body.error!.message).toContain("unknown tool");
     expect(harness.sender.messages).toHaveLength(0);
+  });
+
+  // --- HTTP method dispatch ---
+
+  it("GET /mcp returns 405", async () => {
+    const { app } = createHarness();
+    const res = await app.request("/mcp", { method: "GET" });
+    expect(res.status).toBe(405);
+  });
+
+  it("GET /mcp/:device_key returns 405", async () => {
+    const { app } = createHarness();
+    const res = await app.request("/mcp/some-key", { method: "GET" });
+    expect(res.status).toBe(405);
+  });
+
+  it("DELETE /mcp returns 405", async () => {
+    const { app } = createHarness();
+    const res = await app.request("/mcp", { method: "DELETE" });
+    expect(res.status).toBe(405);
+  });
+
+  it("DELETE /mcp/:device_key returns 405", async () => {
+    const { app } = createHarness();
+    const res = await app.request("/mcp/some-key", { method: "DELETE" });
+    expect(res.status).toBe(405);
+  });
+
+  // --- Version negotiation ---
+
+  it("initialize with absent protocolVersion returns 2025-06-18", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.protocolVersion).toBe("2025-06-18");
+  });
+
+  it("initialize with protocolVersion 2025-03-26 returns 2025-06-18", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.protocolVersion).toBe("2025-06-18");
+  });
+
+  it("initialize with protocolVersion 2025-06-18 returns 2025-06-18", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.protocolVersion).toBe("2025-06-18");
+  });
+
+  it("initialize with unsupported protocolVersion returns 400", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.code).toBe(-32602);
+    expect(body.error!.message).toContain("2024-11-05");
+  });
+
+  // --- MCP-Protocol-Version header ---
+
+  it("all responses include MCP-Protocol-Version header", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "tools/list");
+
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
+  });
+
+  // --- Notification response status ---
+
+  it("unknown notification returns 202 with empty body", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcNotification(app, "/mcp", "notifications/cancelled");
+
+    expect(res.status).toBe(202);
+    const text = await res.text();
+    expect(text).toBe("");
+  });
+
+  it("client response payload returns 202 with empty body", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }),
+    });
+
+    expect(res.status).toBe(202);
+    const text = await res.text();
+    expect(text).toBe("");
+  });
+
+  // --- Accept header ---
+
+  it("Accept header not including application/json returns 406", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "text/html" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(406);
+  });
+
+  it("Accept header including application/json proceeds normally", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/html",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  // --- Origin header ---
+
+  it("Origin matching request origin proceeds normally", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("http://localhost/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("Origin mismatch returns 403", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("http://localhost/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://evil.com",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  // --- Session management ---
+
+  it("initialize with secret returns Mcp-Session-Id header", async () => {
+    const { app } = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+    });
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    const sessionId = res.headers.get("Mcp-Session-Id");
+    expect(sessionId).toBeTruthy();
+    expect(sessionId!).toContain(".");
+  });
+
+  it("initialize without secret does not return Mcp-Session-Id", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Mcp-Session-Id")).toBeNull();
+  });
+
+  it("valid session allows subsequent requests", async () => {
+    const { app } = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+    });
+
+    const initRes = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+    const sessionId = initRes.headers.get("Mcp-Session-Id")!;
+
+    const res = await jsonRpcRequest(
+      app,
+      "/mcp",
+      "tools/list",
+      undefined,
+      1,
+      { "mcp-session-id": sessionId },
+    );
+
+    expect(res.status).toBe(200);
+  });
+
+  it("/mcp/:device_key session cannot access /mcp", async () => {
+    const { app } = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+    });
+
+    const initRes = await jsonRpcRequest(app, "/mcp/some-key", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+    const sessionId = initRes.headers.get("Mcp-Session-Id")!;
+
+    const res = await jsonRpcRequest(
+      app,
+      "/mcp",
+      "tools/list",
+      undefined,
+      1,
+      { "mcp-session-id": sessionId },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.message).toContain("scope mismatch");
+  });
+
+  it("/mcp/:device_key session cannot access different device_key", async () => {
+    const { app } = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+    });
+
+    const initRes = await jsonRpcRequest(app, "/mcp/key-a", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+    const sessionId = initRes.headers.get("Mcp-Session-Id")!;
+
+    const res = await jsonRpcRequest(
+      app,
+      "/mcp/key-b",
+      "tools/list",
+      undefined,
+      1,
+      { "mcp-session-id": sessionId },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.message).toContain("device_key mismatch");
+  });
+
+  it("expired session returns 404", async () => {
+    const secret = "test-secret";
+    const baseTime = 1_700_000_000;
+
+    const harness1 = createHarness({
+      config: { mcpSessionSecret: secret },
+      now: () => baseTime,
+    });
+
+    const initRes = await jsonRpcRequest(harness1.app, "/mcp", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+    const sessionId = initRes.headers.get("Mcp-Session-Id")!;
+
+    const harness2 = createHarness({
+      config: { mcpSessionSecret: secret },
+      now: () => baseTime + 25 * 60 * 60,
+    });
+
+    const res = await jsonRpcRequest(
+      harness2.app,
+      "/mcp",
+      "tools/list",
+      undefined,
+      1,
+      { "mcp-session-id": sessionId },
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it("malformed session returns 400", async () => {
+    const { app } = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+    });
+
+    const res = await jsonRpcRequest(
+      app,
+      "/mcp",
+      "tools/list",
+      undefined,
+      1,
+      { "mcp-session-id": "not-a-valid-token" },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.message).toContain("Malformed");
+  });
+
+  it("bad signature session returns 400", async () => {
+    const { app } = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+    });
+
+    const initRes = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+    const sessionId = initRes.headers.get("Mcp-Session-Id")!;
+    const tampered =
+      sessionId.slice(0, -1) + (sessionId.slice(-1) === "A" ? "B" : "A");
+
+    const res = await jsonRpcRequest(
+      app,
+      "/mcp",
+      "tools/list",
+      undefined,
+      1,
+      { "mcp-session-id": tampered },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.message).toContain("Invalid session signature");
+  });
+
+  it("no secret configured but client sends Mcp-Session-Id returns 400", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(
+      app,
+      "/mcp",
+      "tools/list",
+      undefined,
+      1,
+      { "mcp-session-id": "anything" },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.message).toContain("not enabled");
+  });
+
+  it("session is required when secret is configured", async () => {
+    const { app } = createHarness({
+      config: { mcpSessionSecret: "test-secret" },
+    });
+
+    const res = await jsonRpcRequest(app, "/mcp", "tools/list");
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.message).toContain("Mcp-Session-Id header required");
   });
 });

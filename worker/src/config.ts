@@ -35,6 +35,7 @@ export function createConfigFromEnv(env: BarkBindings): AppConfig {
     basicAuthPassword: env.BASIC_AUTH_PASSWORD,
     maxBatchPushCount: parseMaxBatchPushCount(env.MAX_BATCH_PUSH_COUNT),
     maxRequestBodyBytes: parseMaxRequestBodyBytes(env.MAX_REQUEST_BODY_BYTES),
+    mcpSessionSecret: env.MCP_SESSION_SECRET,
   };
 }
 

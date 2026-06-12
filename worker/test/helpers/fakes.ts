@@ -79,6 +79,7 @@ export interface TestHarnessOptions {
   config?: Partial<AppConfig>;
   buildInfo?: Partial<BuildInfo>;
   registrySeed?: Record<string, string>;
+  now?: () => number;
 }
 
 export interface TestHarness {
@@ -106,6 +107,7 @@ export function createHarness(options: TestHarnessOptions = {}): TestHarness {
     basicAuthPassword: undefined,
     maxBatchPushCount: -1,
     maxRequestBodyBytes: 4 * 1024 * 1024,
+    mcpSessionSecret: undefined,
     ...options.config,
   };
 
@@ -120,7 +122,7 @@ export function createHarness(options: TestHarnessOptions = {}): TestHarness {
   const deps: RuntimeDeps = {
     registry,
     pushSender: sender,
-    now: () => 1_717_900_000,
+    now: options.now ?? (() => 1_717_900_000),
     buildInfo,
   };
 
