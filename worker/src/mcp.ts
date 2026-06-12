@@ -8,26 +8,36 @@ export interface McpRouteOptions {
   deps: RuntimeDeps;
 }
 
+type JsonRpcId = number | string | null;
+
 interface JsonRpcRequest {
   jsonrpc: "2.0";
-  id: number | string;
+  id?: JsonRpcId;
   method: string;
   params?: Record<string, unknown>;
 }
 
 interface JsonRpcSuccessResponse {
   jsonrpc: "2.0";
-  id: number | string;
+  id: JsonRpcId;
   result: unknown;
 }
 
 interface JsonRpcErrorResponse {
   jsonrpc: "2.0";
-  id: number | string | null;
+  id: JsonRpcId;
   error: { code: number; message: string };
 }
 
 type JsonRpcResponse = JsonRpcSuccessResponse | JsonRpcErrorResponse;
+
+function normalizeJsonRpcId(id: unknown): JsonRpcId {
+  if (typeof id === "number" || typeof id === "string" || id === null) {
+    return id;
+  }
+
+  return null;
+}
 
 function buildNotifyTool(deviceKeyRequired: boolean) {
   const properties: Record<string, unknown> = {
@@ -91,11 +101,13 @@ async function handleMcpRequest(
   pathDeviceKey: string | null,
   options: McpRouteOptions,
 ): Promise<JsonRpcResponse | null> {
+  const id = normalizeJsonRpcId(body.id);
+
   switch (body.method) {
     case "initialize":
       return {
         jsonrpc: "2.0",
-        id: body.id,
+        id,
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: { listChanged: false } },
@@ -112,7 +124,7 @@ async function handleMcpRequest(
     case "tools/list":
       return {
         jsonrpc: "2.0",
-        id: body.id,
+        id,
         result: {
           tools: [buildNotifyTool(pathDeviceKey === null)],
         },
@@ -125,7 +137,7 @@ async function handleMcpRequest(
       if (params?.name !== "notify") {
         return {
           jsonrpc: "2.0",
-          id: body.id,
+          id,
           error: {
             code: -32601,
             message: `Method not found: unknown tool ${params?.name ?? "undefined"}`,
@@ -145,7 +157,7 @@ async function handleMcpRequest(
       if (!deviceKey) {
         return {
           jsonrpc: "2.0",
-          id: body.id,
+          id,
           result: {
             content: [{ type: "text", text: "device_key is required" }],
             isError: true,
@@ -162,7 +174,7 @@ async function handleMcpRequest(
       if (result.error) {
         return {
           jsonrpc: "2.0",
-          id: body.id,
+          id,
           result: {
             content: [
               {
@@ -177,7 +189,7 @@ async function handleMcpRequest(
 
       return {
         jsonrpc: "2.0",
-        id: body.id,
+        id,
         result: {
           content: [
             { type: "text", text: "Notification sent successfully" },
@@ -189,7 +201,7 @@ async function handleMcpRequest(
     default:
       return {
         jsonrpc: "2.0",
-        id: body.id,
+        id,
         error: {
           code: -32601,
           message: `Method not found: ${body.method}`,

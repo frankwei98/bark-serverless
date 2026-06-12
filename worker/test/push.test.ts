@@ -278,4 +278,78 @@ describe("push routes", () => {
     });
     expect(registry.snapshot()).toEqual({});
   });
+
+  it("cleans up invalid tokens after APNs 410 failures", async () => {
+    const { app, registry, sender } = createHarness({
+      registrySeed: {
+        alpha: "gone-token",
+      },
+    });
+    sender.failForDeviceToken("gone-token", createApnsError("Unregistered", 410));
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "alpha",
+        body: "hello",
+      }),
+    });
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 500,
+      message: "push failed: Unregistered",
+    });
+    expect(registry.snapshot()).toEqual({});
+  });
+
+  it("limits batch push concurrency while preserving input order", async () => {
+    const registrySeed = Object.fromEntries(
+      Array.from({ length: 120 }, (_, index) => [
+        `device-${index}`,
+        `token-${index}`,
+      ]),
+    );
+    const { app, sender } = createHarness({ registrySeed });
+
+    let active = 0;
+    let maxActive = 0;
+    const originalSend = sender.send.bind(sender);
+    sender.send = async (message) => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        await originalSend(message);
+      } finally {
+        active--;
+      }
+    };
+
+    const deviceKeys = Object.keys(registrySeed);
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        body: "hello",
+        device_keys: deviceKeys,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      code: number;
+      data: Array<{ code: number; device_key: string }>;
+    };
+    expect(payload.code).toBe(200);
+    expect(payload.data).toHaveLength(deviceKeys.length);
+    expect(payload.data.map((row) => row.device_key)).toEqual(deviceKeys);
+    expect(maxActive).toBeLessThanOrEqual(50);
+  });
 });

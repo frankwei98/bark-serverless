@@ -101,7 +101,12 @@ function base64url(data: ArrayBuffer | Uint8Array | string): string {
     binary = data;
   } else {
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-    binary = String.fromCharCode(...bytes);
+    const chunks: string[] = [];
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
+    }
+    binary = chunks.join("");
   }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -122,7 +127,19 @@ function parsePemPrivateKey(pem: string): ArrayBuffer {
       base64Lines.push(line.trim());
     }
   }
-  const binary = atob(base64Lines.join(""));
+
+  const encoded = base64Lines.join("");
+  if (encoded.length === 0) {
+    throw new Error("APNS_PRIVATE_KEY must be a PKCS#8 PEM block");
+  }
+
+  let binary: string;
+  try {
+    binary = atob(encoded);
+  } catch {
+    throw new Error("APNS_PRIVATE_KEY must contain valid base64 PEM data");
+  }
+
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);

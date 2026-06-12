@@ -4,7 +4,7 @@ import { createApnsError, createHarness } from "./helpers/fakes";
 
 interface McpResponse {
   jsonrpc: string;
-  id: number | string;
+  id: number | string | null;
   result?: {
     protocolVersion?: string;
     capabilities?: Record<string, unknown>;
@@ -28,12 +28,17 @@ function jsonRpcRequest(
   url: string,
   method: string,
   params?: Record<string, unknown>,
-  id: number = 1,
+  id: number | string | null | undefined = 1,
 ) {
+  const body: Record<string, unknown> = { jsonrpc: "2.0", method, params };
+  if (id !== undefined) {
+    body.id = id;
+  }
+
   return app.request(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -212,6 +217,22 @@ describe("mcp compatibility", () => {
     expect(body.id).toBe(1);
     expect(body.error!.code).toBe(-32601);
     expect(body.error!.message).toContain("Method not found");
+  });
+
+  it("normalizes missing ids to null in MCP error responses", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "unknown/method" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.jsonrpc).toBe("2.0");
+    expect(body.id).toBeNull();
+    expect(body.error!.code).toBe(-32601);
   });
 
   it("unknown tool name returns method not found instead of sending a push", async () => {
