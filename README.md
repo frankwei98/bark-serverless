@@ -143,6 +143,8 @@ The Worker reads these bindings:
 -----END PRIVATE KEY-----
 ```
 
+The Worker also tolerates deployment systems that flatten this value into a single line or store it with literal `\n` escapes, including the Cloudflare one-click deploy flow.
+
 The current repository keeps the upstream Bark app APNs configuration for compatibility with the public Bark iOS app.
 
 Important note:
@@ -152,6 +154,8 @@ Important note:
 - If you are deploying for a different app or topic, replace all `APNS_*` values accordingly.
 
 > **中文说明：** 这些 `APNS_*` 值在上游 Bark 项目和作者文档中是公开的，并非本仓库意外泄露的密钥。来源：[Bark服务端部署文档](https://day.app/2018/06/bark-server-document/)。如果你为不同的应用或 topic 部署，请替换所有 `APNS_*` 值。
+>
+> `APNS_PRIVATE_KEY` 也兼容被部署系统压成单行，或保存为带字面量 `\n` 的字符串；Cloudflare 一键部署这类情况也能正常解析。
 
 ## Deploy To Cloudflare Worker
 

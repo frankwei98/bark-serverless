@@ -6,6 +6,8 @@ import type { PushMessage } from "@/types";
 const TEST_PKCS8_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
 AA==
 -----END PRIVATE KEY-----`;
+const TEST_PKCS8_PRIVATE_KEY_SINGLE_LINE = "-----BEGIN PRIVATE KEY-----AA==-----END PRIVATE KEY-----";
+const TEST_PKCS8_PRIVATE_KEY_ESCAPED = "-----BEGIN PRIVATE KEY-----\\nAA==\\n-----END PRIVATE KEY-----";
 
 function derInteger(bytes: number[]): number[] {
   const normalized = [...bytes];
@@ -170,6 +172,40 @@ describe("CloudflareApnsClient", () => {
     const binary = atob(signature.replace(/-/g, "+").replace(/_/g, "/"));
 
     expect(binary.length).toBe(64);
+  });
+
+  it("accepts single-line PEM values from flattened deploy variables", async () => {
+    const { importKey } = installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY_SINGLE_LINE,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+
+    await client.send(createMessage());
+
+    expect(importKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts PEM values with escaped newlines", async () => {
+    const { importKey } = installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY_ESCAPED,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+
+    await client.send(createMessage());
+
+    expect(importKey).toHaveBeenCalledTimes(1);
   });
 
   it("treats numeric delete=1 as a background push", async () => {

@@ -113,24 +113,16 @@ function base64url(data: ArrayBuffer | Uint8Array | string): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function parsePemPrivateKey(pem: string): ArrayBuffer {
-  const lines = pem.split("\n");
-  const base64Lines: string[] = [];
-  let inKey = false;
-  for (const line of lines) {
-    if (line.startsWith("-----BEGIN")) {
-      inKey = true;
-      continue;
-    }
-    if (line.startsWith("-----END")) {
-      break;
-    }
-    if (inKey) {
-      base64Lines.push(line.trim());
-    }
-  }
+function normalizePemText(pem: string): string {
+  return pem.replace(/\\r/g, "\r").replace(/\\n/g, "\n").trim();
+}
 
-  const encoded = base64Lines.join("");
+function parsePemPrivateKey(pem: string): ArrayBuffer {
+  const normalizedPem = normalizePemText(pem);
+  const match = normalizedPem.match(
+    /-----BEGIN [^-]+-----\s*([\s\S]*?)\s*-----END [^-]+-----/,
+  );
+  const encoded = match?.[1]?.replace(/\s+/g, "") ?? "";
   if (encoded.length === 0) {
     throw new Error("APNS_PRIVATE_KEY must be a PKCS#8 PEM block");
   }
