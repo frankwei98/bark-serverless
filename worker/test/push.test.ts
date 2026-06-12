@@ -129,6 +129,31 @@ describe("push routes", () => {
     });
   });
 
+  it("accepts custom device key characters for Go compatibility", async () => {
+    const { app, sender } = createHarness({
+      registrySeed: {
+        "bad/key": "token-bad-key",
+      },
+    });
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "bad/key",
+        body: "hello",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(sender.messages[0]).toMatchObject({
+      deviceKey: "bad/key",
+      deviceToken: "token-bad-key",
+    });
+  });
+
   it("returns 400 when device_keys has the wrong type", async () => {
     const { app } = createHarness();
 
@@ -163,6 +188,29 @@ describe("push routes", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
       code: 400,
+    });
+  });
+
+  it("returns 400 when the push body is too large", async () => {
+    const { app } = createHarness({
+      config: { maxRequestBodyBytes: 64 * 1024 },
+    });
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "alpha",
+        body: "x".repeat(70 * 1024),
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: expect.stringContaining("request body is too large"),
     });
   });
 

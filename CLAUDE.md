@@ -80,7 +80,7 @@ When unsure how something should behave, the source of truth is, in order:
 
 ## Configuration
 
-Config is env-driven (`BarkBindings` in `types.ts`, assembled by `config.ts`). `wrangler.toml` holds `[vars]` (APNS_*, optional `URL_PREFIX`, `BASIC_AUTH_*`, `MAX_BATCH_PUSH_COUNT`) and the `DEVICE_REGISTRY` KV binding. Devices are stored as `device:<key> -> <token>`.
+Config is env-driven (`BarkBindings` in `types.ts`, assembled by `config.ts`). `wrangler.toml` holds `[vars]` (APNS_*, optional `URL_PREFIX`, `BASIC_AUTH_*`, `MAX_BATCH_PUSH_COUNT`, `MAX_REQUEST_BODY_BYTES`) and the `DEVICE_REGISTRY` KV binding. Devices are stored as `device:<key> -> <token>`.
 
 The committed `APNS_*` values are the **public upstream Bark app key** (documented in `README.md`, not an accidental leak). For a different app/topic, replace them — and prefer `wrangler secret put APNS_PRIVATE_KEY` over committing a real private key to `[vars]`.
 

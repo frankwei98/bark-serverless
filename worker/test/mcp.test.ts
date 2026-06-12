@@ -206,6 +206,44 @@ describe("mcp compatibility", () => {
     expect(body.error!.message).toBe("Parse error");
   });
 
+  it("oversized JSON returns 400 with parse error", async () => {
+    const { app } = createHarness({
+      config: { maxRequestBodyBytes: 64 * 1024 },
+    });
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "tools/list",
+        padding: "x".repeat(70 * 1024),
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.jsonrpc).toBe("2.0");
+    expect(body.error!.code).toBe(-32700);
+    expect(body.error!.message).toBe("Parse error");
+  });
+
+  it("accepts custom path device_key characters for Go compatibility", async () => {
+    const harness = createHarness({
+      registrySeed: { "bad$key": "bad-key-token" },
+    });
+
+    const res = await jsonRpcRequest(harness.app, "/mcp/bad$key", "tools/call", {
+      name: "notify",
+      arguments: { body: "hello" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.isError).toBeUndefined();
+    expect(harness.sender.messages[0].deviceKey).toBe("bad$key");
+  });
+
   it("unknown method returns method not found error", async () => {
     const { app } = createHarness();
 

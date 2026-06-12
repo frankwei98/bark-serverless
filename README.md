@@ -178,6 +178,12 @@ Update the `[vars]` section in `wrangler.toml`:
 - `APNS_TEAM_ID`
 - `APNS_PRIVATE_KEY`
 
+Optional hardening variables:
+
+- `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` protect all non-compatibility-free routes. `/`, `/ping`, `/healthz`, and `/register` still bypass auth for Bark compatibility.
+- `MAX_BATCH_PUSH_COUNT` limits V2 batch fan-out when `device_keys` is provided.
+- `MAX_REQUEST_BODY_BYTES` limits parsed request bodies for JSON/form/MCP requests. The default is `4194304` bytes.
+
 If you prefer, `APNS_PRIVATE_KEY` can be stored as a Cloudflare secret instead of plaintext config:
 
 ```sh
@@ -199,6 +205,13 @@ pnpm build
 ```sh
 pnpm exec wrangler deploy
 ```
+
+### 6. Apply production protections
+
+After deployment, configure the protections that sit in front of the Worker:
+
+- Set `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` unless you explicitly want an open push endpoint.
+- Add Cloudflare Rate Limiting rules for `/register`, `/push`, `/mcp`, and `/mcp/*`. IP-based limits are the usual starting point.
 
 After deployment, you can smoke-test the service:
 

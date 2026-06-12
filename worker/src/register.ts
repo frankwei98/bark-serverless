@@ -1,7 +1,8 @@
 import type { Context, Hono } from "hono";
 
 import { getErrorMessage, failed, success, withData } from "@/responses";
-import type { RuntimeDeps } from "@/types";
+import type { AppConfig, RuntimeDeps } from "@/types";
+import { assertBodyWithinLimit, readLimitedText } from "@/validation";
 
 interface DeviceInfo {
   device_key?: string;
@@ -11,6 +12,7 @@ interface DeviceInfo {
 }
 
 export interface RegisterRouteOptions {
+  config: AppConfig;
   deps: RuntimeDeps;
 }
 
@@ -18,11 +20,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function parseRegisterBody(request: Request): Promise<DeviceInfo> {
+async function parseRegisterBody(request: Request, maxBodyBytes: number): Promise<DeviceInfo> {
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
 
   if (contentType.startsWith("application/json")) {
-    const raw = await request.text();
+    const raw = await readLimitedText(request, maxBodyBytes);
     if (raw.trim().length === 0) {
       return {};
     }
@@ -30,6 +32,8 @@ async function parseRegisterBody(request: Request): Promise<DeviceInfo> {
     const parsed = JSON.parse(raw) as unknown;
     return isRecord(parsed) ? (parsed as DeviceInfo) : {};
   }
+
+  await assertBodyWithinLimit(request, maxBodyBytes);
 
   try {
     const formData = await request.formData();
@@ -55,7 +59,7 @@ async function doRegister(c: Context, options: RegisterRouteOptions, compat: boo
       const query = c.req.query();
       deviceInfo = query as DeviceInfo;
     } else {
-      deviceInfo = await parseRegisterBody(c.req.raw);
+      deviceInfo = await parseRegisterBody(c.req.raw, options.config.maxRequestBodyBytes);
     }
   } catch (error) {
     const now = options.deps.now();
