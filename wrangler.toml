@@ -4,3 +4,8 @@ compatibility_date = "2026-06-12"
 
 [observability]
 enabled = true
+
+[[kv_namespaces]]
+binding = "DEVICE_REGISTRY"
+id = "replace-with-production-kv-namespace-id"
+preview_id = "replace-with-preview-kv-namespace-id"

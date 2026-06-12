@@ -21,9 +21,13 @@ function makeDerSignature(): ArrayBuffer {
   return Uint8Array.from([0x30, r.length + s.length, ...r, ...s]).buffer;
 }
 
-function installCryptoStub() {
+function makeRawSignature(): ArrayBuffer {
+  return Uint8Array.from({ length: 64 }, (_, index) => index + 1).buffer;
+}
+
+function installCryptoStub(signature: ArrayBuffer = makeRawSignature()) {
   const importKey = vi.fn(async () => ({ type: "private" } as CryptoKey));
-  const sign = vi.fn(async () => makeDerSignature());
+  const sign = vi.fn(async () => signature);
 
   vi.stubGlobal("crypto", {
     ...globalThis.crypto,
@@ -86,7 +90,7 @@ describe("CloudflareApnsClient", () => {
   });
 
   it("emits a JOSE raw ECDSA signature in the JWT", async () => {
-    const { sign } = installCryptoStub();
+    const { sign } = installCryptoStub(makeRawSignature());
 
     const client = new CloudflareApnsClient({
       privateKey: TEST_PKCS8_PRIVATE_KEY,
@@ -109,5 +113,65 @@ describe("CloudflareApnsClient", () => {
     const binary = atob(signature.replace(/-/g, "+").replace(/_/g, "/"));
 
     expect(binary.length).toBe(64);
+  });
+
+  it("also accepts DER ECDSA signatures from runtimes that return ASN.1", async () => {
+    installCryptoStub(makeDerSignature());
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(createMessage());
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const init = calls[0]![1];
+    const authHeader = (init.headers as Record<string, string>).authorization;
+    const token = authHeader.slice("bearer ".length);
+    const signature = token.split(".")[2];
+    const binary = atob(signature.replace(/-/g, "+").replace(/_/g, "/"));
+
+    expect(binary.length).toBe(64);
+  });
+
+  it("treats numeric delete=1 as a background push", async () => {
+    installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(
+      createMessage({
+        extParams: {
+          delete: 1,
+        },
+      }),
+    );
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const init = calls[0]![1];
+    const headers = init.headers as Record<string, string>;
+    const payload = JSON.parse(String(init.body)) as {
+      aps: Record<string, unknown>;
+      delete: string;
+    };
+
+    expect(headers["apns-push-type"]).toBe("background");
+    expect(payload.aps["content-available"]).toBe(1);
+    expect(payload.aps.alert).toBeUndefined();
+    expect(payload.delete).toBe("1");
   });
 });
