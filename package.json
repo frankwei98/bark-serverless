@@ -1,11 +1,12 @@
 {
-  "name": "bark-serverless-worker-migration",
+  "name": "bark-serverless-worker",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.26.2",
   "scripts": {
     "build": "wrangler deploy --dry-run",
     "check": "tsc --noEmit",
+    "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "test": "vitest run",
     "test:watch": "vitest"
