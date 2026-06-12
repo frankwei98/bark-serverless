@@ -23,21 +23,23 @@ Current verified state:
 
 - `pnpm install` completed successfully
 - `pnpm check` passes
-- `pnpm test` passes
+- `pnpm test` passes with 42 executable tests
 - `pnpm build` completes a Wrangler dry-run bundle
 - in this sandbox, Wrangler may print an `EPERM` warning while trying to write `~/.wrangler/logs`; if the dry-run bundle completes, treat that log-write failure as non-blocking
 
-Current test status:
+Current implementation status:
 
-- 26 passing tests
-- 2 MCP `todo` tests
+- Core HTTP routes, auth, registration, push parsing/sending orchestration, KV registry, MCP, and production APNs sender are implemented.
+- MCP tests are executable; no MCP `todo` tests remain.
+- APNs tests cover top-level custom fields, JOSE ECDSA signature encoding, DER signature compatibility, and numeric `delete=1` background pushes.
+- Two code review/fix passes have been applied after the initial scaffold:
+  - APNs custom fields are top-level, not nested under `aps`.
+  - MCP rejects unknown tool names instead of sending a push.
+  - WebCrypto raw ECDSA signatures are accepted without DER parsing.
+  - Numeric `delete=1` triggers background push behavior.
+  - Wrangler has a `DEVICE_REGISTRY` KV binding.
 
-Known remaining code placeholders:
-
-- `worker/src/cloudflare-apns-client.ts`
-- `worker/src/mcp.ts`
-
-These are intentional handoff points for the next AI.
+Remaining work is production validation, not missing business-code implementation.
 
 ## Source Of Truth
 
@@ -124,7 +126,7 @@ Primary TypeScript scaffold files:
 - `Hono` for routing and middleware
 - Cloudflare Worker as the runtime host
 - Cloudflare KV as the `device_key -> device_token` registry
-- APNs credentials from Worker secrets
+- APNs credentials from Worker environment bindings. These may be Wrangler plaintext `[vars]` or Worker secrets; the code reads both through `env`.
 
 ### Layout
 
@@ -150,6 +152,8 @@ This keeps route compatibility testable without real KV or real APNs access.
 - Accept KV eventual consistency.
 - Do not introduce Durable Objects unless later real-world behavior proves KV inadequate.
 - `saveDeviceTokenByKey(key, "")` should remove the key mapping, because the scaffold and current cleanup logic rely on deletion semantics.
+- Keep the KV binding name as `DEVICE_REGISTRY`; changing it requires matching changes in `worker/src/index.ts` and `worker/src/types.ts`.
+- Production and preview KV namespace IDs are configured in `wrangler.toml`. Using the same ID for `id` and `preview_id` is acceptable for this deployment choice, but separate IDs remain safer if preview testing should not touch production device registrations.
 
 ### Device key generation
 
@@ -172,6 +176,20 @@ This keeps route compatibility testable without real KV or real APNs access.
 - Production APNs sending must be isolated behind a `PushSender`.
 - Contract tests must use a fake sender, not real APNs.
 - The production sender should use Worker Web Crypto and standard `fetch`, not Node-only APIs.
+- The current production sender is implemented in `worker/src/cloudflare-apns-client.ts`.
+- `APNS_TOPIC`, `APNS_KEY_ID`, and `APNS_TEAM_ID` may live in `wrangler.toml` `[vars]` because they are already public in the upstream Bark codebase.
+- `APNS_PRIVATE_KEY` must be the full PKCS#8 private key PEM text, including the `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines. The `.p8` and `.pem` filenames in the original repo contain the same PEM format.
+- If storing `APNS_PRIVATE_KEY` in `wrangler.toml`, use a TOML multiline string:
+
+```toml
+[vars]
+APNS_PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+"""
+```
+
+- If storing `APNS_PRIVATE_KEY` as a Cloudflare secret instead, `wrangler secret put APNS_PRIVATE_KEY` can be used; no code change is required.
 
 ### MCP implementation
 
@@ -180,6 +198,10 @@ This keeps route compatibility testable without real KV or real APNs access.
   - `/mcp/:device_key`
 - Disable streaming semantics just like the Go server does.
 - Prefer a minimal request-response implementation over long-lived SSE behavior.
+- The current implementation handles `initialize`, `notifications/initialized`, `tools/list`, and `tools/call`.
+- `notifications/initialized` returns HTTP `204` with an empty body.
+- `/mcp` exposes `notify` with `device_key` required; `/mcp/:device_key` exposes `notify` without requiring `device_key`.
+- `/mcp/:device_key` path value overrides any `device_key` supplied inside tool arguments, matching Go runtime behavior.
 
 ## APNs Mapping Contract
 
@@ -305,7 +327,7 @@ Avoid SSE and long-lived streaming behavior.
 - Set up `pnpm`, TypeScript, Vitest, Wrangler, and Hono.
 - Build the Worker app with dependency injection.
 - Implement misc routes, auth gate, registration routes, and push route parsing.
-- Provide a placeholder production APNs client and a working in-memory test sender.
+- Provide an in-memory test sender and dependency boundaries for production APNs.
 
 Status: complete.
 
@@ -316,7 +338,7 @@ Status: complete.
 - Implement production APNs JWT creation and fetch logic.
 - Add more fixtures if any Go behavior is still ambiguous.
 
-Status: partially complete. Main remaining work is APNs production and MCP.
+Status: complete for the current known contract. APNs and MCP are implemented and covered by tests.
 
 ### Phase 3: production readiness
 
@@ -324,7 +346,7 @@ Status: partially complete. Main remaining work is APNs production and MCP.
 - Run smoke tests with a real device token.
 - Validate on a Worker preview or staging deployment.
 
-Status: not started.
+Status: in progress. KV namespace IDs and APNs environment bindings are configured in `wrangler.toml`. Remaining work is deployment/preview validation and real-device smoke testing.
 
 ## Test Strategy
 
@@ -341,17 +363,21 @@ Current implemented suites:
 - `worker/test/auth.test.ts`
 - `worker/test/register.test.ts`
 - `worker/test/push.test.ts`
-- `worker/test/mcp.test.ts` with `todo` placeholders
+- `worker/test/mcp.test.ts`
+- `worker/test/apns.test.ts`
 
-The new test suite should be the primary execution guide for the next AI.
+The test suite should remain the primary execution guide for any follow-on AI.
 
 ## Remaining Work After This Scaffold
 
-- Complete production APNs integration in `worker/src/cloudflare-apns-client.ts`
-- Replace MCP placeholders in `worker/src/mcp.ts` with real behavior
-- Replace `it.todo(...)` MCP tests with executable tests
-- Reconcile any remaining contract mismatches discovered while running the tests
-- Re-run:
+- Deploy or preview the Worker in Cloudflare.
+- Register a real device and run end-to-end smoke tests for:
+  - `/register`
+  - `/push`
+  - legacy `/:device_key/...` routes
+  - `/mcp` and `/mcp/:device_key`
+- Reconcile any real-device or Go-parity mismatches discovered during smoke testing.
+- Re-run before handoff:
   - `pnpm test`
   - `pnpm check`
   - `pnpm build`
@@ -363,4 +389,4 @@ The new test suite should be the primary execution guide for the next AI.
 - APNs production code is implemented behind `PushSender`.
 - MCP endpoints are implemented.
 - No `todo` or skipped tests remain unless there is a concrete external blocker recorded in code comments and the final handoff.
-- The scaffold remains organized so another AI can implement missing business logic without redesigning the project.
+- The scaffold remains organized so another AI can validate, deploy, and fix any discovered parity gaps without redesigning the project.
