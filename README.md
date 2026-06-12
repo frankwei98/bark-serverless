@@ -1,8 +1,15 @@
 # Bark Serverless Worker
 
-This repository is a `TypeScript + Hono + Cloudflare Worker` reimplementation of the original Go `bark-server`.
+This repository is a `TypeScript + Hono + Cloudflare Worker` reimplementation of the original Go version [`bark-server`](https://github.com/Finb/bark-server).
 
 The goal is public HTTP API compatibility with the Bark iOS app and existing Bark clients, while replacing the self-hosted Go server model with a serverless deployment on Cloudflare Workers.
+
+> 本仓库是原版 Go [`bark-server`](https://github.com/Finb/bark-server) 的 `TypeScript + Hono + Cloudflare Worker` 重写。
+> 目标是与 Bark iOS 应用及现有客户端保持公开 HTTP API 兼容，同时将自托管 Go 服务器替换为 Cloudflare Workers 无服务器部署。
+
+## Deploy / 部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/frankwei98/bark-serverless)
 
 ## Status
 
@@ -21,6 +28,8 @@ Current validation coverage:
 - Wrangler dry-run build passing with `pnpm build`
 - Live smoke tests confirmed for legacy push, `/push`, `/mcp`, and `/mcp/:device_key`
 
+> **中文说明：** Worker 实现已可用于生产环境，覆盖主要 Bark 推送流程。旧版推送路由、`POST /push`、MCP 端点均已可用，APNs 推送经过真机验证，兼容性行为由自动化合约测试覆盖。当前 42 个自动化测试全部通过。
+
 ## Migration Approach
 
 The migration strategy was to preserve HTTP behavior first, not to preserve the original process model.
@@ -34,6 +43,8 @@ Key decisions:
 
 For ambiguous behavior, the source of truth is the upstream Bark project and its public API documentation.
 
+> **中文说明：** 迁移策略是优先保留 HTTP 行为，而非保留原始进程模型。关键决策：保持公开 API 与原版 Bark 服务器兼容；用 Worker 原生组件替换 Go 运行时和存储；使用合约式测试锁定路由行为、解析优先级、认证语义和推送副作用。遇到歧义时，以上游 Bark 项目及其公开 API 文档为准。
+
 ## Architecture
 
 - Runtime: Cloudflare Worker
@@ -44,6 +55,8 @@ For ambiguous behavior, the source of truth is the upstream Bark project and its
 - Tests: Vitest
 
 Device registration is stored as `device_key -> device_token` in KV. Push sending is abstracted behind interfaces so route behavior can be tested without real APNs or real KV.
+
+> **中文说明：** 运行时为 Cloudflare Worker，路由使用 Hono，存储使用 Cloudflare KV，推送通过 `fetch` + Worker Web Crypto 实现 APNs 通信。设备注册以 `device_key -> device_token` 存储在 KV 中，推送通过接口抽象，无需真实 APNs 或 KV 即可测试路由行为。
 
 ## API Compatibility
 
@@ -76,11 +89,15 @@ Compatibility behaviors intentionally preserved:
 - Batch push keeps input order in its per-device results.
 - MCP generic and device-specific endpoints preserve the original `notify` tool behavior.
 
+> **中文说明：** 有意保留的兼容性行为：JSON `Content-Type` 使用 V2 `/push` 解析器，非 JSON 使用旧版解析器；路径参数优先于查询和 body 参数；旧版 `sound` 值标准化为 `*.caf`；空消息转为 `Empty Message`；认证失败返回纯文本 `418 I'm a teapot`；`/ping`、`/register`、`/healthz` 绕过认证；无效 APNs 设备令牌触发密钥清理；批量推送保持输入顺序。
+
 Compatibility status:
 
 - The main production API surface is implemented and validated.
 - The project targets HTTP/API compatibility, not byte-for-byte internal parity.
 - Rare legacy edge cases still depend on test coverage and upstream parity review rather than exhaustive production soak testing.
+
+> **中文说明：** 兼容性状态：主要生产 API 已实现并验证；项目目标是 HTTP/API 兼容，而非逐字节内部一致；罕见的旧版边界情况仍依赖测试覆盖和上游一致性审查，而非详尽的生产环境浸泡测试。
 
 ## Tradeoffs Vs Original Go Server
 
@@ -107,6 +124,8 @@ Cloudflare-specific tradeoffs:
 - Deployment becomes much simpler, but all runtime state must fit the Worker model.
 - MCP is implemented as request-response HTTP only; no streaming transport is provided.
 
+> **中文说明：** 有意不保留的部分：Go CLI 参数、独立二进制打包、`bbolt` 本地存储、MySQL 后端模式、本地 TLS 监听、Unix socket 模式、长连接进程相关调优。Cloudflare 特有权衡：KV 是最终一致性的（不同于本地进程内存储）；部署更简单，但所有运行时状态必须适配 Worker 模型；MCP 仅实现请求-响应 HTTP，不提供流式传输。
+
 ## APNs Configuration
 
 The Worker reads these bindings:
@@ -132,22 +151,30 @@ Important note:
 - Source: [Bark服务端部署文档](https://day.app/2018/06/bark-server-document/)
 - If you are deploying for a different app or topic, replace all `APNS_*` values accordingly.
 
+> **中文说明：** 这些 `APNS_*` 值在上游 Bark 项目和作者文档中是公开的，并非本仓库意外泄露的密钥。来源：[Bark服务端部署文档](https://day.app/2018/06/bark-server-document/)。如果你为不同的应用或 topic 部署，请替换所有 `APNS_*` 值。
+
 ## Deploy To Cloudflare Worker
 
-### Prerequisites
+### One Click To Deploy | 一键部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/frankwei98/bark-serverless)
+
+### Deploy Manually ｜ 手动部署
+
+#### Prerequisites ｜ 前置条件
 
 - Node.js 20+
 - `pnpm`
-- A Cloudflare account with Workers and KV enabled
-- Wrangler authenticated via `pnpm exec wrangler login`
+- A Cloudflare account with Workers and KV enabled / 已启用 Workers 和 KV 的 Cloudflare 账户
+- Wrangler authenticated via `pnpm exec wrangler login` / 已通过 `pnpm exec wrangler login` 完成 Wrangler 认证
 
-### 1. Install dependencies
+#### 1. Install dependencies ｜ 安装依赖
 
 ```sh
 pnpm install
 ```
 
-### 2. Create KV namespaces
+#### 2. Create KV namespaces ｜ 创建 KV 命名空间
 
 Create a production KV namespace:
 
@@ -169,7 +196,7 @@ Then update `wrangler.toml`:
 
 Using the same namespace ID for both `id` and `preview_id` is valid, but separate namespaces are safer if you do not want preview traffic touching production registrations.
 
-### 3. Configure Worker variables
+#### 3. Configure Worker variables ｜ 配置 Worker 变量
 
 Update the `[vars]` section in `wrangler.toml`:
 
@@ -178,11 +205,13 @@ Update the `[vars]` section in `wrangler.toml`:
 - `APNS_TEAM_ID`
 - `APNS_PRIVATE_KEY`
 
-Optional hardening variables:
+Optional hardening variables ｜ 可选安全加固变量:
 
 - `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` protect all non-compatibility-free routes. `/`, `/ping`, `/healthz`, and `/register` still bypass auth for Bark compatibility.
 - `MAX_BATCH_PUSH_COUNT` limits V2 batch fan-out when `device_keys` is provided.
 - `MAX_REQUEST_BODY_BYTES` limits parsed request bodies for JSON/form/MCP requests. The default is `4194304` bytes.
+
+> **中文说明：** `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 保护所有非兼容性免费路由（`/`、`/ping`、`/healthz`、`/register` 仍绕过认证以保持 Bark 兼容）。`MAX_BATCH_PUSH_COUNT` 限制 `device_keys` 批量推送数量。`MAX_REQUEST_BODY_BYTES` 限制 JSON/form/MCP 请求体大小，默认 4MB。
 
 If you prefer, `APNS_PRIVATE_KEY` can be stored as a Cloudflare secret instead of plaintext config:
 
@@ -190,7 +219,7 @@ If you prefer, `APNS_PRIVATE_KEY` can be stored as a Cloudflare secret instead o
 pnpm exec wrangler secret put APNS_PRIVATE_KEY
 ```
 
-### 4. Verify locally
+#### 4. Verify locally ｜ 本地验证
 
 ```sh
 pnpm test
@@ -200,20 +229,22 @@ pnpm build
 
 `pnpm build` runs `wrangler deploy --dry-run`.
 
-### 5. Deploy
+#### 5. Deploy ｜ 部署
 
 ```sh
 pnpm exec wrangler deploy
 ```
 
-### 6. Apply production protections
+## Apply production protections ｜ 保护措施
 
 After deployment, configure the protections that sit in front of the Worker:
 
 - Set `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` unless you explicitly want an open push endpoint.
 - Add Cloudflare Rate Limiting rules for `/register`, `/push`, `/mcp`, and `/mcp/*`. IP-based limits are the usual starting point.
 
-After deployment, you can smoke-test the service:
+> **中文说明：** 部署后需配置防护措施：设置 `BASIC_AUTH_USER` 和 `BASIC_AUTH_PASSWORD`（除非你明确需要开放推送端点）；为 `/register`、`/push`、`/mcp` 和 `/mcp/*` 添加 Cloudflare 速率限制规则，通常以 IP 为基础。
+
+After deployment, you can set up your Bark App and smoke-test the service:
 
 ```sh
 curl https://<your-worker>.workers.dev/ping
@@ -229,9 +260,11 @@ The Worker exposes Bark push as an MCP tool so AI agents can notify you when tas
 
 This is useful for long-running agents such as Claude Code or Codex that should send a Bark notification at task completion.
 
-## Development
+> **中文说明：** Worker 将 Bark 推送暴露为 MCP 工具，供 AI 代理在任务完成或需要关注时通知你。`POST /mcp` 需要 `device_key`，`POST /mcp/:device_key` 则不需要。适用于 Claude Code 或 Codex 等长时间运行的代理在任务完成时发送 Bark 通知。
 
-Useful commands:
+## Development ｜ 开发
+
+Useful commands ｜ 常用命令:
 
 ```sh
 pnpm install
