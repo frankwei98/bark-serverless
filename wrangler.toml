@@ -1,0 +1,6 @@
+name = "bark-serverless-worker"
+main = "worker/src/index.ts"
+compatibility_date = "2026-06-12"
+
+[observability]
+enabled = true

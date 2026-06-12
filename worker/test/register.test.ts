@@ -1,0 +1,135 @@
+import { describe, expect, it } from "vitest";
+
+import { createHarness } from "./helpers/fakes";
+
+describe("register routes", () => {
+  it("registers a device through the GET compatibility endpoint", async () => {
+    const { app, registry } = createHarness();
+    registry.setGeneratedKeys(["generated-a"]);
+
+    const response = await app.request(
+      "http://example.com/register?devicetoken=device-token-1",
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      code: 200,
+      message: "success",
+      timestamp: 1_717_900_000,
+      data: {
+        key: "generated-a",
+        device_key: "generated-a",
+        device_token: "device-token-1",
+      },
+    });
+  });
+
+  it("registers a device through the POST endpoint", async () => {
+    const { app, registry } = createHarness();
+    registry.setGeneratedKeys(["generated-b"]);
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_token: "device-token-2",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      code: 200,
+      message: "success",
+      timestamp: 1_717_900_000,
+      data: {
+        key: "generated-b",
+        device_key: "generated-b",
+        device_token: "device-token-2",
+      },
+    });
+  });
+
+  it("supports legacy key aliases", async () => {
+    const { app } = createHarness();
+
+    const response = await app.request(
+      "http://example.com/register?key=legacy-key&devicetoken=legacy-token",
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      code: 200,
+      message: "success",
+      timestamp: 1_717_900_000,
+      data: {
+        key: "legacy-key",
+        device_key: "legacy-key",
+        device_token: "legacy-token",
+      },
+    });
+  });
+
+  it("checks whether a key exists", async () => {
+    const { app } = createHarness({
+      registrySeed: {
+        alpha: "token-alpha",
+      },
+    });
+
+    const response = await app.request("http://example.com/register/alpha");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      code: 200,
+      message: "success",
+      timestamp: 1_717_900_000,
+    });
+  });
+
+  it("returns 400 when the device token is missing", async () => {
+    const { app } = createHarness();
+
+    const response = await app.request("http://example.com/register");
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: "device token is empty",
+    });
+  });
+
+  it("returns 400 when the device token is too long", async () => {
+    const { app } = createHarness();
+    const deviceToken = "a".repeat(161);
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_token: deviceToken,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: "device token is invalid",
+    });
+  });
+
+  it("returns 400 when a checked device key does not exist", async () => {
+    const { app } = createHarness();
+
+    const response = await app.request("http://example.com/register/missing");
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: "key not found",
+    });
+  });
+});
