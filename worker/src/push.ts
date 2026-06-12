@@ -8,7 +8,7 @@ export interface PushRouteOptions {
   deps: RuntimeDeps;
 }
 
-interface PushAttempt {
+export interface PushAttempt {
   code: number;
   error?: Error;
 }
@@ -91,7 +91,7 @@ function isBadDeviceTokenError(error: ApnsSendError): boolean {
   return error.statusCode === 400 && error.message.includes("BadDeviceToken");
 }
 
-function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceToken"> {
+export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceToken"> {
   const message = {
     deviceKey: "",
     title: "",
@@ -148,7 +148,7 @@ function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceToken"> {
   return message;
 }
 
-async function pushOne(params: ParamMap, options: PushRouteOptions): Promise<PushAttempt> {
+export async function pushOne(params: ParamMap, options: PushRouteOptions): Promise<PushAttempt> {
   const message = buildPushMessage(params);
 
   if (message.deviceKey.length === 0) {

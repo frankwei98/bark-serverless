@@ -53,8 +53,8 @@ function createRouteGroup(options: CreateAppOptions): Hono {
   });
 
   registerRegisterRoutes(app, { deps: options.deps });
+  registerMcpRoutes(app, { config: options.config, deps: options.deps });
   registerPushRoutes(app, { config: options.config, deps: options.deps });
-  registerMcpRoutes(app, { deps: options.deps });
 
   return app;
 }
