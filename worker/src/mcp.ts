@@ -13,6 +13,7 @@ export interface McpRouteOptions {
 const SUPPORTED_PROTOCOL_VERSIONS = new Set(["2025-03-26", "2025-06-18"]);
 const SERVER_PROTOCOL_VERSION = "2025-06-18";
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
+const PROTOCOL_HEADER = "MCP-Protocol-Version";
 
 type JsonRpcId = number | string | null;
 
@@ -55,6 +56,10 @@ interface SessionPayload {
 type SessionValidationResult =
   | { valid: true; payload: SessionPayload }
   | { valid: false; status: 400 | 404; message: string };
+
+type ProtocolValidationResult =
+  | { valid: true; version: string | null }
+  | { valid: false; version: string };
 
 function normalizeJsonRpcId(id: unknown): JsonRpcId {
   if (typeof id === "number" || typeof id === "string" || id === null) {
@@ -169,6 +174,34 @@ async function validateSessionToken(
   }
 
   return { valid: true, payload };
+}
+
+function setProtocolHeader(c: Context, version = SERVER_PROTOCOL_VERSION): void {
+  c.header(PROTOCOL_HEADER, version);
+}
+
+function protocolError(c: Context, message: string, status: 400): Response {
+  setProtocolHeader(c);
+  return c.json(
+    {
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32600, message },
+    } satisfies JsonRpcErrorResponse,
+    status,
+  );
+}
+
+function validateProtocolHeader(headerValue: string | undefined): ProtocolValidationResult {
+  if (headerValue === undefined) {
+    return { valid: true, version: null };
+  }
+
+  if (SUPPORTED_PROTOCOL_VERSIONS.has(headerValue)) {
+    return { valid: true, version: headerValue };
+  }
+
+  return { valid: false, version: headerValue };
 }
 
 function buildNotifyTool(deviceKeyRequired: boolean) {
@@ -392,12 +425,23 @@ async function handleMcpRequest(
 
 export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
   async function handlePost(c: Context, pathDeviceKey: string | null) {
+    const protocolHeader = c.req.header("mcp-protocol-version");
+    const protocolValidation = validateProtocolHeader(protocolHeader);
+    if (!protocolValidation.valid) {
+      return protocolError(
+        c,
+        `Unsupported protocol version: ${protocolValidation.version}. Supported: ${[...SUPPORTED_PROTOCOL_VERSIONS].join(", ")}`,
+        400,
+      );
+    }
+
     // Origin check
     const origin = c.req.header("origin");
     if (origin !== undefined) {
       const requestUrl = new URL(c.req.url);
       const requestOrigin = `${requestUrl.protocol}//${requestUrl.host}`;
       if (origin !== requestOrigin) {
+        setProtocolHeader(c);
         return c.text("Forbidden: Origin mismatch", 403);
       }
     }
@@ -405,6 +449,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
     // Accept header validation
     const accept = c.req.header("accept");
     if (accept !== undefined && !accept.includes("application/json")) {
+      setProtocolHeader(c);
       return c.text("Not Acceptable", 406);
     }
 
@@ -413,15 +458,9 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
     const sessionHeader = c.req.header("mcp-session-id");
 
     if (!hasSession && sessionHeader !== undefined) {
-      return c.json(
-        {
-          jsonrpc: "2.0",
-          id: null,
-          error: {
-            code: -32600,
-            message: "Session management is not enabled on this server",
-          },
-        } satisfies JsonRpcErrorResponse,
+      return protocolError(
+        c,
+        "Session management is not enabled on this server",
         400,
       );
     }
@@ -435,6 +474,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       );
       body = JSON.parse(raw) as JsonRpcRequest;
     } catch {
+      setProtocolHeader(c);
       return c.json(
         {
           jsonrpc: "2.0",
@@ -445,19 +485,27 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       );
     }
 
-    // Session validation for non-initialize requests
-    if (hasSession && body.method !== "initialize") {
-      if (!sessionHeader) {
+    if (body.method === "initialize") {
+      const clientVersion = (body.params as Record<string, unknown> | undefined)
+        ?.protocolVersion as string | undefined;
+      if (clientVersion !== undefined && protocolHeader !== undefined && clientVersion !== protocolHeader) {
+        setProtocolHeader(c);
         return c.json(
           {
             jsonrpc: "2.0",
             id: normalizeJsonRpcId(body.id),
-            error: { code: -32600, message: "Mcp-Session-Id header required" },
+            error: {
+              code: -32602,
+              message: `Protocol version mismatch between ${PROTOCOL_HEADER} header (${protocolHeader}) and initialize params (${clientVersion})`,
+            },
           } satisfies JsonRpcErrorResponse,
           400,
         );
       }
+    }
 
+    // Session validation for non-initialize requests stays optional for compatibility.
+    if (hasSession && body.method !== "initialize" && sessionHeader) {
       const now = options.deps.now();
       const expectedScope = pathDeviceKey !== null ? "device" : "global";
       const validation = await validateSessionToken(
@@ -469,6 +517,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       );
 
       if (!validation.valid) {
+        setProtocolHeader(c);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -499,9 +548,10 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
         body.params as Record<string, unknown> | undefined
       )?.protocolVersion as string | undefined;
       const negotiatedVersion =
-        clientVersion && SUPPORTED_PROTOCOL_VERSIONS.has(clientVersion)
+        protocolHeader ??
+        (clientVersion && SUPPORTED_PROTOCOL_VERSIONS.has(clientVersion)
           ? clientVersion
-          : SERVER_PROTOCOL_VERSION;
+          : SERVER_PROTOCOL_VERSION);
       const scope = pathDeviceKey !== null ? "device" : "global";
 
       const token = await createSessionToken(
@@ -514,7 +564,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       c.header("Mcp-Session-Id", token);
     }
 
-    c.header("MCP-Protocol-Version", SERVER_PROTOCOL_VERSION);
+    setProtocolHeader(c);
     return c.json(result.body, (result.status ?? 200) as ContentfulStatusCode);
   }
 
@@ -524,6 +574,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
   );
 
   const methodNotAllowed = (c: Context) => {
+    setProtocolHeader(c);
     return c.text("Method Not Allowed", 405);
   };
   app.get("/mcp", methodNotAllowed);
