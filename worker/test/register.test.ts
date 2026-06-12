@@ -121,6 +121,85 @@ describe("register routes", () => {
     });
   });
 
+  it("accepts non-hex device tokens for Go compatibility", async () => {
+    const { app } = createHarness();
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_token: "not-a-token",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("accepts custom device keys for Go compatibility", async () => {
+    const { app } = createHarness();
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "bad/key",
+        device_token: "aabbcc",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("returns 400 when the register body is too large", async () => {
+    const { app } = createHarness({
+      config: { maxRequestBodyBytes: 64 * 1024 },
+    });
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_token: "device-token",
+        padding: "x".repeat(70 * 1024),
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: expect.stringContaining("request body is too large"),
+    });
+  });
+
+  it("returns 400 when the form register body is too large", async () => {
+    const { app } = createHarness({
+      config: { maxRequestBodyBytes: 64 * 1024 },
+    });
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        device_token: "device-token",
+        padding: "x".repeat(70 * 1024),
+      }).toString(),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: expect.stringContaining("request body is too large"),
+    });
+  });
+
   it("returns 400 when a checked device key does not exist", async () => {
     const { app } = createHarness();
 

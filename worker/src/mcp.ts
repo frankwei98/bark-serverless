@@ -2,6 +2,7 @@ import type { Context, Hono } from "hono";
 
 import { pushOne } from "@/push";
 import type { AppConfig, RuntimeDeps } from "@/types";
+import { readLimitedText } from "@/validation";
 
 export interface McpRouteOptions {
   config: AppConfig;
@@ -214,7 +215,8 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
   async function handleRequest(c: Context, pathDeviceKey: string | null) {
     let body: JsonRpcRequest;
     try {
-      body = await c.req.json<JsonRpcRequest>();
+      const raw = await readLimitedText(c.req.raw, options.config.maxRequestBodyBytes);
+      body = JSON.parse(raw) as JsonRpcRequest;
     } catch {
       return c.json(
         {

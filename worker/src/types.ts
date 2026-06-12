@@ -17,6 +17,7 @@ export interface AppConfig {
   basicAuthUser?: string;
   basicAuthPassword?: string;
   maxBatchPushCount: number;
+  maxRequestBodyBytes: number;
 }
 
 export interface BarkBindings {
@@ -25,6 +26,7 @@ export interface BarkBindings {
   BASIC_AUTH_USER?: string;
   BASIC_AUTH_PASSWORD?: string;
   MAX_BATCH_PUSH_COUNT?: string;
+  MAX_REQUEST_BODY_BYTES?: string;
   APP_VERSION?: string;
   APP_BUILD?: string;
   APP_COMMIT?: string;

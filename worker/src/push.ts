@@ -2,6 +2,7 @@ import type { Context, Hono } from "hono";
 
 import { failed, getErrorMessage, success, withData } from "@/responses";
 import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
+import { assertBodyWithinLimit, readLimitedText } from "@/validation";
 
 export interface PushRouteOptions {
   config: AppConfig;
@@ -56,7 +57,9 @@ function lowerCaseEntryMap(source: Iterable<[string, string]>): ParamMap {
   return params;
 }
 
-async function parseFormData(request: Request): Promise<ParamMap> {
+async function parseFormData(request: Request, maxBodyBytes: number): Promise<ParamMap> {
+  await assertBodyWithinLimit(request, maxBodyBytes);
+
   try {
     const formData = await request.formData();
     const params: ParamMap = {};
@@ -73,8 +76,8 @@ async function parseFormData(request: Request): Promise<ParamMap> {
   }
 }
 
-async function parseJsonBody(request: Request): Promise<ParamMap> {
-  const raw = await request.text();
+async function parseJsonBody(request: Request, maxBodyBytes: number): Promise<ParamMap> {
+  const raw = await readLimitedText(request, maxBodyBytes);
   if (raw.trim().length === 0) {
     return {};
   }
@@ -200,7 +203,14 @@ async function routeDoPushV1(c: Context, options: PushRouteOptions) {
   const params: ParamMap = {};
 
   Object.assign(params, lowerCaseEntryMap(new URL(c.req.url).searchParams.entries()));
-  Object.assign(params, await parseFormData(c.req.raw));
+  try {
+    Object.assign(params, await parseFormData(c.req.raw, options.config.maxRequestBodyBytes));
+  } catch (error) {
+    return c.json(
+      failed(options.deps.now(), 400, `request bind failed: ${getErrorMessage(error)}`),
+      400,
+    );
+  }
   const pathParams = extractPathParams(c);
   if (!pathParams.ok) {
     return c.json(failed(options.deps.now(), 400, pathParams.message), 400);
@@ -265,7 +275,7 @@ async function routeDoPushV2(c: Context, options: PushRouteOptions) {
   let params: ParamMap = {};
 
   try {
-    params = await parseJsonBody(c.req.raw);
+    params = await parseJsonBody(c.req.raw, options.config.maxRequestBodyBytes);
   } catch (error) {
     return c.json(
       failed(options.deps.now(), 400, `request bind failed: ${getErrorMessage(error)}`),

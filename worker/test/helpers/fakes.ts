@@ -105,6 +105,7 @@ export function createHarness(options: TestHarnessOptions = {}): TestHarness {
     basicAuthUser: undefined,
     basicAuthPassword: undefined,
     maxBatchPushCount: -1,
+    maxRequestBodyBytes: 4 * 1024 * 1024,
     ...options.config,
   };
 

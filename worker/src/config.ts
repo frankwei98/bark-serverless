@@ -1,4 +1,5 @@
 import type { AppConfig, BarkBindings, BuildInfo } from "@/types";
+import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/validation";
 
 export function normalizeUrlPrefix(prefix?: string): string {
   if (!prefix || prefix === "/") {
@@ -18,12 +19,22 @@ export function parseMaxBatchPushCount(raw?: string): number {
   return Number.isNaN(parsed) ? -1 : parsed;
 }
 
+export function parseMaxRequestBodyBytes(raw?: string): number {
+  if (!raw) {
+    return DEFAULT_MAX_REQUEST_BODY_BYTES;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_REQUEST_BODY_BYTES;
+}
+
 export function createConfigFromEnv(env: BarkBindings): AppConfig {
   return {
     urlPrefix: normalizeUrlPrefix(env.URL_PREFIX),
     basicAuthUser: env.BASIC_AUTH_USER,
     basicAuthPassword: env.BASIC_AUTH_PASSWORD,
     maxBatchPushCount: parseMaxBatchPushCount(env.MAX_BATCH_PUSH_COUNT),
+    maxRequestBodyBytes: parseMaxRequestBodyBytes(env.MAX_REQUEST_BODY_BYTES),
   };
 }
 
