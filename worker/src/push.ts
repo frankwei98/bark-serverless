@@ -1,0 +1,308 @@
+import type { Context, Hono } from "hono";
+
+import { failed, getErrorMessage, success, withData } from "@/responses";
+import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
+
+export interface PushRouteOptions {
+  config: AppConfig;
+  deps: RuntimeDeps;
+}
+
+interface PushAttempt {
+  code: number;
+  error?: Error;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJsonContentType(contentType: string): boolean {
+  return contentType.toLowerCase().startsWith("application/json");
+}
+
+function extractPathParams(c: Context): ParamMap {
+  const params: ParamMap = {};
+  const keys = ["device_key", "subtitle", "title", "body"] as const;
+
+  for (const key of keys) {
+    const value = c.req.param(key);
+    if (value) {
+      params[key] = decodeURIComponent(value);
+    }
+  }
+
+  return params;
+}
+
+function lowerCaseEntryMap(source: Iterable<[string, string]>): ParamMap {
+  const params: ParamMap = {};
+  for (const [key, value] of source) {
+    params[key.toLowerCase()] = value;
+  }
+  return params;
+}
+
+async function parseFormData(request: Request): Promise<ParamMap> {
+  try {
+    const formData = await request.formData();
+    const params: ParamMap = {};
+
+    formData.forEach((value, key) => {
+      if (typeof value === "string") {
+        params[key.toLowerCase()] = value;
+      }
+    });
+
+    return params;
+  } catch {
+    return {};
+  }
+}
+
+async function parseJsonBody(request: Request): Promise<ParamMap> {
+  const raw = await request.text();
+  if (raw.trim().length === 0) {
+    return {};
+  }
+
+  const parsed = JSON.parse(raw) as unknown;
+  return isRecord(parsed) ? { ...parsed } : {};
+}
+
+function normalizePushError(error: unknown): ApnsSendError {
+  if (error instanceof Error) {
+    return error as ApnsSendError;
+  }
+
+  const normalized = new Error(String(error)) as ApnsSendError;
+  return normalized;
+}
+
+function isEmptyAlert(message: Pick<PushMessage, "title" | "subtitle" | "body">): boolean {
+  return message.title.length === 0 && message.subtitle.length === 0 && message.body.length === 0;
+}
+
+function isBadDeviceTokenError(error: ApnsSendError): boolean {
+  if (error.statusCode === 410) {
+    return true;
+  }
+
+  return error.statusCode === 400 && error.message.includes("BadDeviceToken");
+}
+
+function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceToken"> {
+  const message = {
+    deviceKey: "",
+    title: "",
+    subtitle: "",
+    body: "",
+    sound: "1107",
+    extParams: {} as Record<string, unknown>,
+    id: undefined as string | undefined,
+  };
+
+  for (const [rawKey, rawValue] of Object.entries(params)) {
+    if (typeof rawValue === "string") {
+      switch (rawKey.toLowerCase()) {
+        case "id":
+          message.id = rawValue;
+          message.extParams.id = rawValue;
+          break;
+        case "device_key":
+          message.deviceKey = rawValue;
+          break;
+        case "subtitle":
+          message.subtitle = rawValue;
+          break;
+        case "title":
+          message.title = rawValue;
+          break;
+        case "body":
+          message.body = rawValue;
+          break;
+        case "sound":
+          message.sound = rawValue.endsWith(".caf") ? rawValue : `${rawValue}.caf`;
+          break;
+        default:
+          message.extParams[rawKey.toLowerCase()] = rawValue;
+          break;
+      }
+      continue;
+    }
+
+    if (isRecord(rawValue)) {
+      for (const [key, value] of Object.entries(rawValue)) {
+        message.extParams[key] = value;
+      }
+      continue;
+    }
+
+    message.extParams[rawKey] = rawValue;
+  }
+
+  if (isEmptyAlert(message)) {
+    message.body = "Empty Message";
+  }
+
+  return message;
+}
+
+async function pushOne(params: ParamMap, options: PushRouteOptions): Promise<PushAttempt> {
+  const message = buildPushMessage(params);
+
+  if (message.deviceKey.length === 0) {
+    return { code: 400, error: new Error("device key is empty") };
+  }
+
+  try {
+    const deviceToken = await options.deps.registry.deviceTokenByKey(message.deviceKey);
+    await options.deps.pushSender.send({
+      ...message,
+      deviceToken,
+    });
+    return { code: 200 };
+  } catch (error) {
+    const normalized = normalizePushError(error);
+
+    if (!("statusCode" in normalized)) {
+      return {
+        code: 400,
+        error: new Error(`failed to get device token: ${normalized.message}`),
+      };
+    }
+
+    if (isBadDeviceTokenError(normalized)) {
+      await options.deps.registry.saveDeviceTokenByKey(message.deviceKey, "");
+    }
+
+    return {
+      code: 500,
+      error: new Error(`push failed: ${normalized.message}`),
+    };
+  }
+}
+
+async function routeDoPushV1(c: Context, options: PushRouteOptions) {
+  const params: ParamMap = {};
+
+  Object.assign(params, lowerCaseEntryMap(new URL(c.req.url).searchParams.entries()));
+  Object.assign(params, await parseFormData(c.req.raw));
+  Object.assign(params, extractPathParams(c));
+
+  const result = await pushOne(params, options);
+  if (result.error) {
+    c.status(result.code as 400 | 500);
+    return c.json(failed(options.deps.now(), result.code, result.error.message));
+  }
+
+  return c.json(success(options.deps.now()), 200);
+}
+
+function readDeviceKeys(value: unknown): string[] | null {
+  if (typeof value === "string") {
+    return value.split(",");
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+
+  return null;
+}
+
+async function routeDoPushV2(c: Context, options: PushRouteOptions) {
+  let params: ParamMap = {};
+
+  try {
+    params = await parseJsonBody(c.req.raw);
+  } catch (error) {
+    return c.json(
+      failed(options.deps.now(), 400, `request bind failed: ${getErrorMessage(error)}`),
+      400,
+    );
+  }
+
+  Object.assign(params, lowerCaseEntryMap(new URL(c.req.url).searchParams.entries()));
+  Object.assign(params, extractPathParams(c));
+
+  let deviceKeys: string[] = [];
+  if ("device_keys" in params) {
+    const parsed = readDeviceKeys(params.device_keys);
+    if (parsed === null) {
+      return c.json(failed(options.deps.now(), 400, "invalid type for device_keys"), 400);
+    }
+
+    deviceKeys = parsed;
+    delete params.device_keys;
+  }
+
+  if (deviceKeys.length === 0) {
+    const result = await pushOne(params, options);
+    if (result.error) {
+      c.status(result.code as 400 | 500);
+      return c.json(failed(options.deps.now(), result.code, result.error.message));
+    }
+
+    return c.json(success(options.deps.now()), 200);
+  }
+
+  if (
+    options.config.maxBatchPushCount !== -1 &&
+    deviceKeys.length > options.config.maxBatchPushCount
+  ) {
+    return c.json(
+      failed(
+        options.deps.now(),
+        400,
+        `batch push count exceeds the maximum limit: ${options.config.maxBatchPushCount}`,
+      ),
+      400,
+    );
+  }
+
+  const result = await Promise.all(
+    deviceKeys.map(async (deviceKey) => {
+      const nextParams = { ...params, device_key: deviceKey };
+      const attempt = await pushOne(nextParams, options);
+
+      const row: Record<string, unknown> = {
+        code: attempt.code,
+        device_key: deviceKey,
+      };
+
+      if (attempt.error) {
+        row.message = attempt.error.message;
+      }
+
+      return row;
+    }),
+  );
+
+  return c.json(withData(options.deps.now(), result), 200);
+}
+
+async function routeDoPush(c: Context, options: PushRouteOptions) {
+  const contentType = c.req.header("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
+  if (isJsonContentType(contentType)) {
+    return routeDoPushV2(c, options);
+  }
+
+  return routeDoPushV1(c, options);
+}
+
+export function registerPushRoutes(app: Hono, options: PushRouteOptions): void {
+  app.post("/push", (c) => routeDoPush(c, options));
+
+  const handlers = [
+    "/:device_key",
+    "/:device_key/:body",
+    "/:device_key/:title/:body",
+    "/:device_key/:title/:subtitle/:body",
+  ];
+
+  for (const path of handlers) {
+    app.get(path, (c) => routeDoPush(c, options));
+    app.post(path, (c) => routeDoPush(c, options));
+  }
+}

@@ -1,0 +1,88 @@
+import { describe, expect, it } from "vitest";
+
+import { createBasicAuthHeader, createHarness } from "./helpers/fakes";
+
+describe("basic auth compatibility", () => {
+  it("allows root without auth even when auth is enabled", async () => {
+    const { app } = createHarness({
+      config: {
+        basicAuthUser: "demo",
+        basicAuthPassword: "secret",
+      },
+    });
+
+    const response = await app.request("http://example.com/");
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("ok");
+  });
+
+  it("allows auth-free endpoints without credentials", async () => {
+    const { app } = createHarness({
+      config: {
+        basicAuthUser: "demo",
+        basicAuthPassword: "secret",
+      },
+    });
+
+    await expect(app.request("http://example.com/ping")).resolves.toMatchObject({ status: 200 });
+    await expect(
+      app.request("http://example.com/healthz"),
+    ).resolves.toMatchObject({ status: 200 });
+    await expect(
+      app.request("http://example.com/register?devicetoken=abc"),
+    ).resolves.toMatchObject({ status: 200 });
+  });
+
+  it("returns teapot for protected routes without credentials", async () => {
+    const { app } = createHarness({
+      config: {
+        basicAuthUser: "demo",
+        basicAuthPassword: "secret",
+      },
+      registrySeed: {
+        dev: "token-a",
+      },
+    });
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "dev",
+        body: "hello",
+      }),
+    });
+
+    expect(response.status).toBe(418);
+    expect(await response.text()).toBe("I'm a teapot");
+  });
+
+  it("allows protected routes with valid credentials", async () => {
+    const { app } = createHarness({
+      config: {
+        basicAuthUser: "demo",
+        basicAuthPassword: "secret",
+      },
+      registrySeed: {
+        dev: "token-a",
+      },
+    });
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        authorization: createBasicAuthHeader("demo", "secret"),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "dev",
+        body: "hello",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+  });
+});
