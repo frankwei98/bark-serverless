@@ -82,6 +82,19 @@ function derSignatureToJose(signature: ArrayBuffer): Uint8Array {
   return jose;
 }
 
+function normalizeEcdsaSignature(signature: ArrayBuffer): Uint8Array {
+  const bytes = new Uint8Array(signature);
+  if (bytes.length === 64) {
+    return bytes;
+  }
+
+  if (bytes[0] === 0x30) {
+    return derSignatureToJose(signature);
+  }
+
+  throw new Error(`Unsupported ECDSA signature format: ${bytes.length} bytes`);
+}
+
 function base64url(data: ArrayBuffer | Uint8Array | string): string {
   let binary: string;
   if (typeof data === "string") {
@@ -155,7 +168,7 @@ export class CloudflareApnsClient implements PushSender {
       new TextEncoder().encode(signingInput),
     );
 
-    const jwt = `${signingInput}.${base64url(derSignatureToJose(signature))}`;
+    const jwt = `${signingInput}.${base64url(normalizeEcdsaSignature(signature))}`;
     this.cachedJwt = { token: jwt, iat };
     return jwt;
   }
@@ -171,7 +184,8 @@ export class CloudflareApnsClient implements PushSender {
     }
 
     const jwt = await this.getJwt();
-    const isDelete = message.extParams.delete === "1";
+    const deleteFlag = message.extParams.delete;
+    const isDelete = deleteFlag === "1" || deleteFlag === 1;
 
     const aps: Record<string, unknown> = { "mutable-content": 1 };
     const payload: Record<string, unknown> = { aps };
