@@ -27,12 +27,12 @@ The migration strategy was to preserve HTTP behavior first, not to preserve the 
 
 Key decisions:
 
-- Keep the public API shape compatible with the Go server.
+- Keep the public API shape compatible with the original Bark server.
 - Replace Go runtime and storage with Worker-native components.
 - Use contract-style tests to lock route behavior, parsing precedence, auth semantics, and push side effects.
 - Prefer explicit compatibility over framework magic.
 
-The source of truth for ambiguous behavior remains the original Go implementation in this repository.
+For ambiguous behavior, the source of truth is the upstream Bark project and its public API documentation.
 
 ## Architecture
 
@@ -80,7 +80,7 @@ Compatibility status:
 
 - The main production API surface is implemented and validated.
 - The project targets HTTP/API compatibility, not byte-for-byte internal parity.
-- Rare legacy edge cases still depend on test coverage and Go-source parity review rather than exhaustive production soak testing.
+- Rare legacy edge cases still depend on test coverage and upstream parity review rather than exhaustive production soak testing.
 
 ## Tradeoffs Vs Original Go Server
 

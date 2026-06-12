@@ -1,1 +1,0 @@
-web: bin/bark-server -addr 0.0.0.0:$PORT -serverless true
