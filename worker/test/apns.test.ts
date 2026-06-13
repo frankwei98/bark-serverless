@@ -160,6 +160,34 @@ describe("CloudflareApnsClient", () => {
     expect(payload.metadata).toBe('{"nested":true}');
   });
 
+  it("falls back to String(value) when JSON.stringify returns undefined", async () => {
+    installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(
+      createMessage({
+        extParams: {
+          customSymbol: Symbol("custom"),
+        },
+      }),
+    );
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const init = calls[0]![1];
+    const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
+
+    expect(payload.customsymbol).toBe("Symbol(custom)");
+  });
+
   it("encodes device tokens before appending them to the APNs path", async () => {
     installCryptoStub();
 
