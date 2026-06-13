@@ -1,5 +1,7 @@
 import type { CommonResp } from "@/types";
 
+export const INTERNAL_ERROR_MESSAGE = "internal server error";
+
 export function success(now: number): CommonResp {
   return {
     code: 200,

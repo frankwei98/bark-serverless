@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createHarness } from "./helpers/fakes";
 
@@ -52,6 +52,22 @@ describe("misc routes", () => {
       arch: "cloudflare/workerd",
       commit: "test-commit",
       devices: 2,
+    });
+  });
+
+  it("does not expose internal error messages from the global error handler", async () => {
+    const { app, registry } = createHarness();
+    registry.countAll = vi.fn(async () => {
+      throw new Error("internal kv cursor failed");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await app.request("http://example.com/info");
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 500,
+      message: "internal server error",
     });
   });
 });

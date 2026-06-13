@@ -5,7 +5,7 @@ import { createBasicAuthMiddleware } from "@/auth";
 import { normalizeUrlPrefix } from "@/config";
 import { registerMcpRoutes } from "@/mcp";
 import { registerPushRoutes } from "@/push";
-import { getErrorMessage, failed } from "@/responses";
+import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE } from "@/responses";
 import { registerRegisterRoutes } from "@/register";
 import type { AppConfig, RuntimeDeps } from "@/types";
 
@@ -80,7 +80,12 @@ export function createApp(options: CreateAppOptions): Hono {
   app.notFound((c) => c.text("404 Not Found", 404));
   app.onError((error, c) => {
     const status = error instanceof HTTPException ? error.status : 500;
-    return c.json(failed(options.deps.now(), status, getErrorMessage(error)), status);
+    if (status >= 500) {
+      console.error("Unhandled request error", error);
+    }
+
+    const message = status >= 500 ? INTERNAL_ERROR_MESSAGE : getErrorMessage(error);
+    return c.json(failed(options.deps.now(), status, message), status);
   });
 
   return app;
