@@ -4,7 +4,18 @@ import { normalizeUrlPrefix } from "@/config";
 import { timingSafeStringEqual } from "@/timing-safe";
 import type { AppConfig } from "@/types";
 
-const AUTH_FREE_ROUTES = ["/ping", "/register", "/healthz"];
+interface AuthFreeRoute {
+  method: string;
+  path: string;
+}
+
+const AUTH_FREE_ROUTES: AuthFreeRoute[] = [
+  { method: "GET", path: "/" },
+  { method: "GET", path: "/ping" },
+  { method: "GET", path: "/healthz" },
+  { method: "GET", path: "/register" },
+  { method: "POST", path: "/register" },
+];
 
 function decodeBasicAuth(header: string | undefined): string | null {
   if (!header || !header.startsWith("Basic ")) {
@@ -32,14 +43,25 @@ function stripPrefix(pathname: string, prefix: string): string {
   return relative.length === 0 ? "/" : relative;
 }
 
-function isAuthFreePath(relativePath: string): boolean {
-  if (relativePath === "/") {
+function isRegisterCheckPath(method: string, relativePath: string): boolean {
+  if (method !== "GET") {
+    return false;
+  }
+
+  const prefix = "/register/";
+  if (!relativePath.startsWith(prefix)) {
+    return false;
+  }
+
+  return relativePath.slice(prefix.length).length > 0;
+}
+
+function isAuthFreeRoute(method: string, relativePath: string): boolean {
+  if (AUTH_FREE_ROUTES.some((route) => route.method === method && route.path === relativePath)) {
     return true;
   }
 
-  return AUTH_FREE_ROUTES.some((item) => {
-    return relativePath === item || relativePath.startsWith(`${item}/`);
-  });
+  return isRegisterCheckPath(method, relativePath);
 }
 
 export function createBasicAuthMiddleware(config: AppConfig): MiddlewareHandler {
@@ -54,7 +76,7 @@ export function createBasicAuthMiddleware(config: AppConfig): MiddlewareHandler 
     const pathname = new URL(c.req.url).pathname;
     const relativePath = stripPrefix(pathname, config.urlPrefix);
 
-    if (isAuthFreePath(relativePath)) {
+    if (isAuthFreeRoute(c.req.method, relativePath)) {
       await next();
       return;
     }
