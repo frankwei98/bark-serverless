@@ -92,6 +92,74 @@ describe("CloudflareApnsClient", () => {
     expect((payload.aps as Record<string, unknown>).badge).toBeUndefined();
   });
 
+  it("keeps the generated aps dictionary when custom fields include aps", async () => {
+    installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(
+      createMessage({
+        extParams: {
+          aps: "CLOBBERED",
+          customField: "x",
+        },
+      }),
+    );
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const init = calls[0]![1];
+    const payload = JSON.parse(String(init.body)) as {
+      aps: Record<string, unknown>;
+      customfield: string;
+    };
+
+    expect(payload.aps).toMatchObject({
+      alert: {
+        title: "Title",
+        subtitle: "Subtitle",
+        body: "Body",
+      },
+      sound: "minuet.caf",
+    });
+    expect(payload.customfield).toBe("x");
+  });
+
+  it("serializes object custom fields as JSON strings", async () => {
+    installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(
+      createMessage({
+        extParams: {
+          metadata: { nested: true },
+        },
+      }),
+    );
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const init = calls[0]![1];
+    const payload = JSON.parse(String(init.body)) as Record<string, unknown>;
+
+    expect(payload.metadata).toBe('{"nested":true}');
+  });
+
   it("emits a JOSE raw ECDSA signature in the JWT", async () => {
     const { sign } = installCryptoStub(makeRawSignature());
 

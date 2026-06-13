@@ -8,6 +8,7 @@ export interface CloudflareApnsConfig {
 }
 
 const JWT_REUSE_SECONDS = 30 * 60;
+const RESERVED_PAYLOAD_KEYS = new Set(["aps"]);
 
 function trimLeadingZeroes(bytes: Uint8Array): Uint8Array {
   let start = 0;
@@ -117,6 +118,28 @@ function normalizePemText(pem: string): string {
   return pem.replace(/\\r/g, "\r").replace(/\\n/g, "\n").trim();
 }
 
+function stringifyCustomField(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    value === null ||
+    value === undefined
+  ) {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 function parsePemPrivateKey(pem: string): ArrayBuffer {
   const normalizedPem = normalizePemText(pem);
   const match = normalizedPem.match(
@@ -223,7 +246,12 @@ export class CloudflareApnsClient implements PushSender {
     }
 
     for (const [key, value] of Object.entries(message.extParams)) {
-      payload[key.toLowerCase()] = String(value);
+      const normalizedKey = key.toLowerCase();
+      if (RESERVED_PAYLOAD_KEYS.has(normalizedKey)) {
+        continue;
+      }
+
+      payload[normalizedKey] = stringifyCustomField(value);
     }
 
     const headers: Record<string, string> = {
