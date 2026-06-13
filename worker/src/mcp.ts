@@ -2,6 +2,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Context, Hono } from "hono";
 
 import { pushOne } from "@/push";
+import { timingSafeStringEqual } from "@/timing-safe";
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { readLimitedText } from "@/validation";
 
@@ -10,7 +11,12 @@ export interface McpRouteOptions {
   deps: RuntimeDeps;
 }
 
-const SUPPORTED_PROTOCOL_VERSIONS = new Set(["2025-03-26", "2025-06-18"]);
+const ACCEPTED_PROTOCOL_VERSIONS = ["2025-03-26", "2025-06-18"] as const;
+const LEGACY_INITIALIZE_PROTOCOL_VERSIONS = ["2024-11-05"] as const;
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<string>(ACCEPTED_PROTOCOL_VERSIONS);
+const LEGACY_INITIALIZE_PROTOCOL_VERSION_SET = new Set<string>(
+  LEGACY_INITIALIZE_PROTOCOL_VERSIONS,
+);
 const SERVER_PROTOCOL_VERSION = "2025-06-18";
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
 const PROTOCOL_HEADER = "MCP-Protocol-Version";
@@ -61,12 +67,24 @@ type ProtocolValidationResult =
   | { valid: true; version: string | null }
   | { valid: false; version: string };
 
+type InitializeNegotiationResult =
+  | { valid: true; version: string }
+  | { valid: false; version: string };
+
 function normalizeJsonRpcId(id: unknown): JsonRpcId {
   if (typeof id === "number" || typeof id === "string" || id === null) {
     return id;
   }
 
   return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJsonRpcObject(value: unknown): value is JsonRpcRequest {
+  return isRecord(value) && value.jsonrpc === "2.0";
 }
 
 function isJsonRpcNotification(body: JsonRpcRequest): boolean {
@@ -149,7 +167,7 @@ async function validateSessionToken(
   const signatureB64 = token.slice(dotIndex + 1);
 
   const expectedSig = await hmacSign(secret, payloadB64);
-  if (signatureB64 !== expectedSig) {
+  if (!timingSafeStringEqual(signatureB64, expectedSig)) {
     return { valid: false, status: 400, message: "Invalid session signature" };
   }
 
@@ -180,8 +198,13 @@ function setProtocolHeader(c: Context, version = SERVER_PROTOCOL_VERSION): void 
   c.header(PROTOCOL_HEADER, version);
 }
 
-function protocolError(c: Context, message: string, status: 400): Response {
-  setProtocolHeader(c);
+function protocolError(
+  c: Context,
+  message: string,
+  status: 400,
+  version = SERVER_PROTOCOL_VERSION,
+): Response {
+  setProtocolHeader(c, version);
   return c.json(
     {
       jsonrpc: "2.0",
@@ -190,6 +213,13 @@ function protocolError(c: Context, message: string, status: 400): Response {
     } satisfies JsonRpcErrorResponse,
     status,
   );
+}
+
+function responseProtocolVersionForHeader(headerValue: string | undefined): string {
+  const validation = validateProtocolHeader(headerValue);
+  return validation.valid && validation.version !== null
+    ? validation.version
+    : SERVER_PROTOCOL_VERSION;
 }
 
 function validateProtocolHeader(headerValue: string | undefined): ProtocolValidationResult {
@@ -202,6 +232,24 @@ function validateProtocolHeader(headerValue: string | undefined): ProtocolValida
   }
 
   return { valid: false, version: headerValue };
+}
+
+function negotiateInitializeProtocolVersion(
+  clientVersion: string | undefined,
+): InitializeNegotiationResult {
+  if (clientVersion === undefined) {
+    return { valid: true, version: SERVER_PROTOCOL_VERSION };
+  }
+
+  if (SUPPORTED_PROTOCOL_VERSIONS.has(clientVersion)) {
+    return { valid: true, version: clientVersion };
+  }
+
+  if (LEGACY_INITIALIZE_PROTOCOL_VERSION_SET.has(clientVersion)) {
+    return { valid: true, version: SERVER_PROTOCOL_VERSION };
+  }
+
+  return { valid: false, version: clientVersion };
 }
 
 function buildNotifyTool(deviceKeyRequired: boolean) {
@@ -265,6 +313,7 @@ async function handleMcpRequest(
   body: JsonRpcRequest,
   pathDeviceKey: string | null,
   options: McpRouteOptions,
+  negotiatedInitializeProtocolVersion?: string,
 ): Promise<McpHandlerResult> {
   const id = normalizeJsonRpcId(body.id);
 
@@ -280,11 +329,12 @@ async function handleMcpRequest(
     case "initialize": {
       const clientVersion = (body.params as Record<string, unknown> | undefined)
         ?.protocolVersion as string | undefined;
+      const negotiation =
+        negotiatedInitializeProtocolVersion !== undefined
+          ? { valid: true as const, version: negotiatedInitializeProtocolVersion }
+          : negotiateInitializeProtocolVersion(clientVersion);
 
-      if (
-        clientVersion !== undefined &&
-        !SUPPORTED_PROTOCOL_VERSIONS.has(clientVersion)
-      ) {
+      if (!negotiation.valid) {
         return {
           kind: "response",
           status: 400,
@@ -293,7 +343,7 @@ async function handleMcpRequest(
             id,
             error: {
               code: -32602,
-              message: `Unsupported protocol version: ${clientVersion}. Supported: ${[...SUPPORTED_PROTOCOL_VERSIONS].join(", ")}`,
+              message: `Unsupported protocol version: ${negotiation.version}. Supported: ${[...SUPPORTED_PROTOCOL_VERSIONS].join(", ")}`,
             },
           },
         };
@@ -305,7 +355,7 @@ async function handleMcpRequest(
           jsonrpc: "2.0",
           id,
           result: {
-            protocolVersion: SERVER_PROTOCOL_VERSION,
+            protocolVersion: negotiation.version,
             capabilities: { tools: { listChanged: false } },
             serverInfo: {
               name: "Bark MCP Server",
@@ -427,11 +477,16 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
   async function handlePost(c: Context, pathDeviceKey: string | null) {
     const protocolHeader = c.req.header("mcp-protocol-version");
     const protocolValidation = validateProtocolHeader(protocolHeader);
+    let responseProtocolVersion =
+      protocolValidation.valid && protocolValidation.version !== null
+        ? protocolValidation.version
+        : SERVER_PROTOCOL_VERSION;
     if (!protocolValidation.valid) {
       return protocolError(
         c,
         `Unsupported protocol version: ${protocolValidation.version}. Supported: ${[...SUPPORTED_PROTOCOL_VERSIONS].join(", ")}`,
         400,
+        responseProtocolVersion,
       );
     }
 
@@ -441,7 +496,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       const requestUrl = new URL(c.req.url);
       const requestOrigin = `${requestUrl.protocol}//${requestUrl.host}`;
       if (origin !== requestOrigin) {
-        setProtocolHeader(c);
+        setProtocolHeader(c, responseProtocolVersion);
         return c.text("Forbidden: Origin mismatch", 403);
       }
     }
@@ -449,7 +504,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
     // Accept header validation
     const accept = c.req.header("accept");
     if (accept !== undefined && !accept.includes("application/json")) {
-      setProtocolHeader(c);
+      setProtocolHeader(c, responseProtocolVersion);
       return c.text("Not Acceptable", 406);
     }
 
@@ -462,19 +517,21 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
         c,
         "Session management is not enabled on this server",
         400,
+        responseProtocolVersion,
       );
     }
 
     // Parse body
+    let parsed: unknown;
     let body: JsonRpcRequest;
     try {
       const raw = await readLimitedText(
         c.req.raw,
         options.config.maxRequestBodyBytes,
       );
-      body = JSON.parse(raw) as JsonRpcRequest;
+      parsed = JSON.parse(raw);
     } catch {
-      setProtocolHeader(c);
+      setProtocolHeader(c, responseProtocolVersion);
       return c.json(
         {
           jsonrpc: "2.0",
@@ -485,11 +542,41 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       );
     }
 
+    if (Array.isArray(parsed)) {
+      setProtocolHeader(c, responseProtocolVersion);
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32600,
+            message: "JSON-RPC batch requests are not supported",
+          },
+        } satisfies JsonRpcErrorResponse,
+        400,
+      );
+    }
+
+    if (!isJsonRpcObject(parsed)) {
+      setProtocolHeader(c, responseProtocolVersion);
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32600, message: "Invalid Request" },
+        } satisfies JsonRpcErrorResponse,
+        400,
+      );
+    }
+
+    body = parsed;
+
+    let negotiatedInitializeProtocolVersion: string | undefined;
     if (body.method === "initialize") {
       const clientVersion = (body.params as Record<string, unknown> | undefined)
         ?.protocolVersion as string | undefined;
       if (clientVersion !== undefined && protocolHeader !== undefined && clientVersion !== protocolHeader) {
-        setProtocolHeader(c);
+        setProtocolHeader(c, responseProtocolVersion);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -501,6 +588,14 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
           } satisfies JsonRpcErrorResponse,
           400,
         );
+      }
+
+      const negotiation = negotiateInitializeProtocolVersion(
+        clientVersion ?? protocolHeader,
+      );
+      if (negotiation.valid) {
+        responseProtocolVersion = negotiation.version;
+        negotiatedInitializeProtocolVersion = negotiation.version;
       }
     }
 
@@ -517,7 +612,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       );
 
       if (!validation.valid) {
-        setProtocolHeader(c);
+        setProtocolHeader(c, responseProtocolVersion);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -530,10 +625,15 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
     }
 
     // Dispatch
-    const result = await handleMcpRequest(body, pathDeviceKey, options);
+    const result = await handleMcpRequest(
+      body,
+      pathDeviceKey,
+      options,
+      negotiatedInitializeProtocolVersion,
+    );
 
     if (result.kind === "notification" || result.kind === "client-response") {
-      c.header("MCP-Protocol-Version", SERVER_PROTOCOL_VERSION);
+      setProtocolHeader(c, responseProtocolVersion);
       return c.body(null, 202);
     }
 
@@ -547,10 +647,12 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       const clientVersion = (
         body.params as Record<string, unknown> | undefined
       )?.protocolVersion as string | undefined;
+      const fallbackNegotiation = negotiateInitializeProtocolVersion(clientVersion);
       const negotiatedVersion =
         protocolHeader ??
-        (clientVersion && SUPPORTED_PROTOCOL_VERSIONS.has(clientVersion)
-          ? clientVersion
+        negotiatedInitializeProtocolVersion ??
+        (fallbackNegotiation.valid
+          ? fallbackNegotiation.version
           : SERVER_PROTOCOL_VERSION);
       const scope = pathDeviceKey !== null ? "device" : "global";
 
@@ -564,7 +666,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       c.header("Mcp-Session-Id", token);
     }
 
-    setProtocolHeader(c);
+    setProtocolHeader(c, responseProtocolVersion);
     return c.json(result.body, (result.status ?? 200) as ContentfulStatusCode);
   }
 
@@ -574,7 +676,10 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
   );
 
   const methodNotAllowed = (c: Context) => {
-    setProtocolHeader(c);
+    setProtocolHeader(
+      c,
+      responseProtocolVersionForHeader(c.req.header("mcp-protocol-version")),
+    );
     return c.text("Method Not Allowed", 405);
   };
   app.get("/mcp", methodNotAllowed);

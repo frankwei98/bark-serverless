@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 
 import { normalizeUrlPrefix } from "@/config";
+import { timingSafeStringEqual } from "@/timing-safe";
 import type { AppConfig } from "@/types";
 
 const AUTH_FREE_ROUTES = ["/ping", "/register", "/healthz"];
@@ -15,19 +16,6 @@ function decodeBasicAuth(header: string | undefined): string | null {
   } catch {
     return null;
   }
-}
-
-function timingSafeStringEqual(actual: string | null, expected: string): boolean {
-  if (actual === null) {
-    return false;
-  }
-
-  let diff = actual.length ^ expected.length;
-  for (let i = 0; i < expected.length; i++) {
-    diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-
-  return diff === 0;
 }
 
 function stripPrefix(pathname: string, prefix: string): string {
