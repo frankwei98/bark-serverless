@@ -38,7 +38,7 @@ describe("basic auth compatibility", () => {
   });
 
   it("blocks auth-free path prefixes that fall through to push routes", async () => {
-    const { app } = createHarness({
+    const { app, sender } = createHarness({
       config: {
         basicAuthUser: "demo",
         basicAuthPassword: "secret",
@@ -59,6 +59,13 @@ describe("basic auth compatibility", () => {
     await expect(
       app.request("http://example.com/register/demo-key", { method: "POST" }),
     ).resolves.toMatchObject({ status: 418 });
+    await expect(app.request("http://example.com/register/a/b")).resolves.toMatchObject({
+      status: 418,
+    });
+    await expect(app.request("http://example.com/register/a/b/c")).resolves.toMatchObject({
+      status: 418,
+    });
+    expect(sender.messages).toHaveLength(0);
   });
 
   it("returns teapot for protected routes without credentials", async () => {

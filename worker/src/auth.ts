@@ -53,7 +53,8 @@ function isRegisterCheckPath(method: string, relativePath: string): boolean {
     return false;
   }
 
-  return relativePath.slice(prefix.length).length > 0;
+  const rest = relativePath.slice(prefix.length);
+  return rest.length > 0 && !rest.includes("/");
 }
 
 function isAuthFreeRoute(method: string, relativePath: string): boolean {
