@@ -23,12 +23,12 @@ The Worker implementation is usable in production for the main Bark flows.
 
 Current validation coverage:
 
-- `42` automated tests passing with `pnpm test`
+- `92` automated tests passing with `pnpm test`
 - TypeScript checks passing with `pnpm check`
 - Wrangler dry-run build passing with `pnpm build`
 - Live smoke tests confirmed for legacy push, `/push`, `/mcp`, and `/mcp/:device_key`
 
-> **中文说明：** Worker 实现已可用于生产环境，覆盖主要 Bark 推送流程。旧版推送路由、`POST /push`、MCP 端点均已可用，APNs 推送经过真机验证，兼容性行为由自动化合约测试覆盖。当前 42 个自动化测试全部通过。
+> **中文说明：** Worker 实现已可用于生产环境，覆盖主要 Bark 推送流程。旧版推送路由、`POST /push`、MCP 端点均已可用，APNs 推送经过真机验证，兼容性行为由自动化合约测试覆盖。当前 92 个自动化测试全部通过。
 
 ## Migration Approach
 
@@ -214,8 +214,9 @@ Optional hardening variables ｜ 可选安全加固变量:
 - `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` protect all non-compatibility-free routes. `/`, `/ping`, `/healthz`, and `/register` still bypass auth for Bark compatibility.
 - `MAX_BATCH_PUSH_COUNT` limits V2 batch fan-out when `device_keys` is provided.
 - `MAX_REQUEST_BODY_BYTES` limits parsed request bodies for JSON/form/MCP requests. The default is `4194304` bytes.
+- `MCP_SESSION_SECRET` signs optional MCP session IDs. It is not an access-control boundary: requests without `Mcp-Session-Id` are still accepted for compatibility, so use Basic Auth to restrict MCP access.
 
-> **中文说明：** `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 保护所有非兼容性免费路由（`/`、`/ping`、`/healthz`、`/register` 仍绕过认证以保持 Bark 兼容）。`MAX_BATCH_PUSH_COUNT` 限制 `device_keys` 批量推送数量。`MAX_REQUEST_BODY_BYTES` 限制 JSON/form/MCP 请求体大小，默认 4MB。
+> **中文说明：** `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 保护所有非兼容性免费路由（`/`、`/ping`、`/healthz`、`/register` 仍绕过认证以保持 Bark 兼容）。`MAX_BATCH_PUSH_COUNT` 限制 `device_keys` 批量推送数量。`MAX_REQUEST_BODY_BYTES` 限制 JSON/form/MCP 请求体大小，默认 4MB。`MCP_SESSION_SECRET` 用于签名可选 MCP session ID，但它不是访问控制边界；为了兼容，未携带 `Mcp-Session-Id` 的请求仍会被接受，限制 MCP 访问请使用 Basic Auth。
 
 If you prefer, `APNS_PRIVATE_KEY` can be stored as a Cloudflare secret instead of plaintext config:
 
@@ -265,11 +266,13 @@ The Worker exposes Bark push as an MCP tool so AI agents can notify you when tas
 
 The transport follows the MCP Streamable HTTP rules for version negotiation and optional sessions, but this deployment model intentionally does not keep a standalone SSE stream open.
 
-If `MCP_SESSION_SECRET` is configured, `initialize` returns `Mcp-Session-Id` and clients may reuse it on later requests. Existing clients may still skip `initialize` and call tools directly for backward compatibility.
+If `MCP_SESSION_SECRET` is configured, `initialize` returns `Mcp-Session-Id` and clients may reuse it on later requests. Existing clients may still skip `initialize` and call tools directly for backward compatibility, so the session secret is not a replacement for Basic Auth.
+
+The MCP endpoint accepts one JSON-RPC message per POST. JSON-RPC batch arrays are rejected with `400`.
 
 This is useful for long-running agents such as Claude Code or Codex that should send a Bark notification at task completion.
 
-> **中文说明：** Worker 将 Bark 推送暴露为 MCP 工具，供 AI 代理在任务完成或需要关注时通知你。`POST /mcp` 需要 `device_key`，`POST /mcp/:device_key` 则不需要；MCP 端点的 `GET` / `DELETE` 会返回 `405 Method Not Allowed`。传输层遵循现代 Streamable HTTP 的版本协商和可选 session 语义，但当前部署不会保持独立 SSE 流。若配置 `MCP_SESSION_SECRET`，`initialize` 会返回 `Mcp-Session-Id` 供后续请求复用；为了兼容现有客户端，仍允许跳过 `initialize` 直接调用工具。
+> **中文说明：** Worker 将 Bark 推送暴露为 MCP 工具，供 AI 代理在任务完成或需要关注时通知你。`POST /mcp` 需要 `device_key`，`POST /mcp/:device_key` 则不需要；MCP 端点的 `GET` / `DELETE` 会返回 `405 Method Not Allowed`。传输层遵循现代 Streamable HTTP 的版本协商和可选 session 语义，但当前部署不会保持独立 SSE 流。若配置 `MCP_SESSION_SECRET`，`initialize` 会返回 `Mcp-Session-Id` 供后续请求复用；为了兼容现有客户端，仍允许跳过 `initialize` 直接调用工具，因此 session secret 不能替代 Basic Auth。MCP 端点每个 POST 接受一条 JSON-RPC 消息，JSON-RPC 批量数组会返回 `400`。
 
 ## Development ｜ 开发
 

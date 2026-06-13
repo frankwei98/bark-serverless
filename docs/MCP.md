@@ -11,7 +11,9 @@ Bark supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io
 
 `GET` and `DELETE` on these endpoints return `405 Method Not Allowed`.
 
-If `MCP_SESSION_SECRET` is configured, `initialize` returns `Mcp-Session-Id`, which clients may reuse on later requests. Existing clients may still skip `initialize` and call tools directly for backward compatibility.
+If `MCP_SESSION_SECRET` is configured, `initialize` returns `Mcp-Session-Id`, which clients may reuse on later requests. Existing clients may still skip `initialize` and call tools directly for backward compatibility, so the session secret is not an access-control boundary. Use Basic Auth to restrict MCP access.
+
+The endpoint accepts one JSON-RPC message per POST. JSON-RPC batch arrays are rejected with `400`.
 
 ### Examples
 
