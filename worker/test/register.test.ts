@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createHarness } from "./helpers/fakes";
 
@@ -209,6 +209,30 @@ describe("register routes", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: 400,
       message: "key not found",
+    });
+  });
+
+  it("does not expose internal storage errors during registration", async () => {
+    const { app, registry } = createHarness();
+    registry.saveDeviceTokenByKey = vi.fn(async () => {
+      throw new Error("kv write failed");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_token: "device-token",
+      }),
+    });
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 500,
+      message: "internal server error",
     });
   });
 });

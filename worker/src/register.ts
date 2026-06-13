@@ -1,6 +1,6 @@
 import type { Context, Hono } from "hono";
 
-import { getErrorMessage, failed, success, withData } from "@/responses";
+import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } from "@/responses";
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { assertBodyWithinLimit, readLimitedText } from "@/validation";
 
@@ -89,14 +89,8 @@ async function doRegister(c: Context, options: RegisterRouteOptions, compat: boo
       200,
     );
   } catch (error) {
-    return c.json(
-      failed(
-        options.deps.now(),
-        500,
-        `device registration failed: ${getErrorMessage(error)}`,
-      ),
-      500,
-    );
+    console.error("Device registration failed", error);
+    return c.json(failed(options.deps.now(), 500, INTERNAL_ERROR_MESSAGE), 500);
   }
 }
 
