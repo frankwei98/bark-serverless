@@ -1,6 +1,8 @@
 import type { AppConfig, BarkBindings, BuildInfo } from "@/types";
 import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/validation";
 
+export const DEFAULT_MAX_BATCH_PUSH_COUNT = 1000;
+
 export function normalizeUrlPrefix(prefix?: string): string {
   if (!prefix || prefix === "/") {
     return "/";
@@ -12,11 +14,15 @@ export function normalizeUrlPrefix(prefix?: string): string {
 
 export function parseMaxBatchPushCount(raw?: string): number {
   if (!raw) {
-    return -1;
+    return DEFAULT_MAX_BATCH_PUSH_COUNT;
   }
 
   const parsed = Number.parseInt(raw, 10);
-  return Number.isNaN(parsed) ? -1 : parsed;
+  if (parsed === -1) {
+    return -1;
+  }
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_BATCH_PUSH_COUNT;
 }
 
 export function parseMaxRequestBodyBytes(raw?: string): number {

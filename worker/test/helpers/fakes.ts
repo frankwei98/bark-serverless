@@ -1,4 +1,5 @@
 import { createApp } from "@/app";
+import { DEFAULT_MAX_BATCH_PUSH_COUNT } from "@/config";
 import type {
   ApnsSendError,
   AppConfig,
@@ -105,7 +106,7 @@ export function createHarness(options: TestHarnessOptions = {}): TestHarness {
     urlPrefix: "/",
     basicAuthUser: undefined,
     basicAuthPassword: undefined,
-    maxBatchPushCount: -1,
+    maxBatchPushCount: DEFAULT_MAX_BATCH_PUSH_COUNT,
     maxRequestBodyBytes: 4 * 1024 * 1024,
     mcpSessionSecret: undefined,
     ...options.config,

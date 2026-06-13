@@ -212,11 +212,11 @@ Update the `[vars]` section in `wrangler.toml`:
 Optional hardening variables ｜ 可选安全加固变量:
 
 - `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` protect all non-compatibility-free routes. `/`, `/ping`, `/healthz`, and `/register` still bypass auth for Bark compatibility.
-- `MAX_BATCH_PUSH_COUNT` limits V2 batch fan-out when `device_keys` is provided.
+- `MAX_BATCH_PUSH_COUNT` limits V2 batch fan-out when `device_keys` is provided. The default is `1000`; set `-1` only if you intentionally want no application-level cap.
 - `MAX_REQUEST_BODY_BYTES` limits parsed request bodies for JSON/form/MCP requests. The default is `4194304` bytes.
 - `MCP_SESSION_SECRET` signs optional MCP session IDs. It is not an access-control boundary: requests without `Mcp-Session-Id` are still accepted for compatibility, so use Basic Auth to restrict MCP access.
 
-> **中文说明：** `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 保护所有非兼容性免费路由（`/`、`/ping`、`/healthz`、`/register` 仍绕过认证以保持 Bark 兼容）。`MAX_BATCH_PUSH_COUNT` 限制 `device_keys` 批量推送数量。`MAX_REQUEST_BODY_BYTES` 限制 JSON/form/MCP 请求体大小，默认 4MB。`MCP_SESSION_SECRET` 用于签名可选 MCP session ID，但它不是访问控制边界；为了兼容，未携带 `Mcp-Session-Id` 的请求仍会被接受，限制 MCP 访问请使用 Basic Auth。
+> **中文说明：** `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 保护所有非兼容性免费路由（`/`、`/ping`、`/healthz`、`/register` 仍绕过认证以保持 Bark 兼容）。`MAX_BATCH_PUSH_COUNT` 限制 `device_keys` 批量推送数量，默认 `1000`；只有在你明确接受无应用层上限时才应设为 `-1`。`MAX_REQUEST_BODY_BYTES` 限制 JSON/form/MCP 请求体大小，默认 4MB。`MCP_SESSION_SECRET` 用于签名可选 MCP session ID，但它不是访问控制边界；为了兼容，未携带 `Mcp-Session-Id` 的请求仍会被接受，限制 MCP 访问请使用 Basic Auth。
 
 If you prefer, `APNS_PRIVATE_KEY` can be stored as a Cloudflare secret instead of plaintext config:
 
