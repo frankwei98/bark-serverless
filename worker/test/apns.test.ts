@@ -160,6 +160,33 @@ describe("CloudflareApnsClient", () => {
     expect(payload.metadata).toBe('{"nested":true}');
   });
 
+  it("encodes device tokens before appending them to the APNs path", async () => {
+    installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(
+      createMessage({
+        deviceToken: "abc/../../../../foo?x=y#z",
+      }),
+    );
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    const url = String(calls[0]![0]);
+
+    expect(url).toBe(
+      "https://api.push.apple.com/3/device/abc%2F..%2F..%2F..%2F..%2Ffoo%3Fx%3Dy%23z",
+    );
+  });
+
   it("emits a JOSE raw ECDSA signature in the JWT", async () => {
     const { sign } = installCryptoStub(makeRawSignature());
 
