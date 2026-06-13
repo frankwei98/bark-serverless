@@ -266,7 +266,7 @@ export class CloudflareApnsClient implements PushSender {
       headers["apns-collapse-id"] = message.id;
     }
 
-    const url = `https://api.push.apple.com/3/device/${message.deviceToken}`;
+    const url = `https://api.push.apple.com/3/device/${encodeURIComponent(message.deviceToken)}`;
 
     let response: Response;
     try {
