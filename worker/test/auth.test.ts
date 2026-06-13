@@ -32,6 +32,33 @@ describe("basic auth compatibility", () => {
     await expect(
       app.request("http://example.com/register?devicetoken=abc"),
     ).resolves.toMatchObject({ status: 200 });
+    await expect(app.request("http://example.com/register/demo-key")).resolves.toMatchObject({
+      status: 400,
+    });
+  });
+
+  it("blocks auth-free path prefixes that fall through to push routes", async () => {
+    const { app } = createHarness({
+      config: {
+        basicAuthUser: "demo",
+        basicAuthPassword: "secret",
+      },
+      registrySeed: {
+        ping: "token-ping",
+        healthz: "token-healthz",
+        register: "token-register",
+      },
+    });
+
+    await expect(app.request("http://example.com/ping", { method: "POST" })).resolves.toMatchObject({
+      status: 418,
+    });
+    await expect(
+      app.request("http://example.com/healthz", { method: "POST" }),
+    ).resolves.toMatchObject({ status: 418 });
+    await expect(
+      app.request("http://example.com/register/demo-key", { method: "POST" }),
+    ).resolves.toMatchObject({ status: 418 });
   });
 
   it("returns teapot for protected routes without credentials", async () => {
