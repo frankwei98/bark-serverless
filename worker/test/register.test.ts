@@ -212,6 +212,52 @@ describe("register routes", () => {
     });
   });
 
+  it("returns 403 when registration is closed (POST)", async () => {
+    const { app } = createHarness({ config: { closeRegister: true } });
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_token: "device-token",
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      code: 403,
+      message: "registration is closed",
+      timestamp: 1_717_900_000,
+    });
+  });
+
+  it("returns 403 when registration is closed (GET compat)", async () => {
+    const { app } = createHarness({ config: { closeRegister: true } });
+
+    const response = await app.request(
+      "http://example.com/register?devicetoken=device-token-1",
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 403,
+      message: "registration is closed",
+    });
+  });
+
+  it("still allows device key checks when registration is closed", async () => {
+    const { app } = createHarness({
+      config: { closeRegister: true },
+      registrySeed: { alpha: "token-alpha" },
+    });
+
+    const response = await app.request("http://example.com/register/alpha");
+
+    expect(response.status).toBe(200);
+  });
+
   it("does not expose internal storage errors during registration", async () => {
     const { app, registry } = createHarness();
     registry.saveDeviceTokenByKey = vi.fn(async () => {

@@ -52,6 +52,10 @@ async function parseRegisterBody(request: Request, maxBodyBytes: number): Promis
 }
 
 async function doRegister(c: Context, options: RegisterRouteOptions, compat: boolean) {
+  if (options.config.closeRegister) {
+    return c.json(failed(options.deps.now(), 403, "registration is closed"), 403);
+  }
+
   let deviceInfo: DeviceInfo = {};
 
   try {

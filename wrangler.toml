@@ -6,6 +6,9 @@ compatibility_date = "2026-06-12"
 enabled = true
 
 [vars]
+# 稳定后可以考虑关闭新设备的注册，防止他人滥用
+CLOSE_REGISTER = false
+# 保持默认即可，除非你知道你在干什么
 APNS_TOPIC = "me.fin.bark"
 APNS_KEY_ID = "LH4T9V5U4R"
 APNS_TEAM_ID = "5U8LBRXG3A"

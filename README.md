@@ -23,12 +23,12 @@ The Worker implementation is usable in production for the main Bark flows.
 
 Current validation coverage:
 
-- `92` automated tests passing with `pnpm test`
+- `111` automated tests passing with `pnpm test`
 - TypeScript checks passing with `pnpm check`
 - Wrangler dry-run build passing with `pnpm build`
 - Live smoke tests confirmed for legacy push, `/push`, `/mcp`, and `/mcp/:device_key`
 
-> **中文说明：** Worker 实现已可用于生产环境，覆盖主要 Bark 推送流程。旧版推送路由、`POST /push`、MCP 端点均已可用，APNs 推送经过真机验证，兼容性行为由自动化合约测试覆盖。当前 92 个自动化测试全部通过。
+> **中文说明：** Worker 实现已可用于生产环境，覆盖主要 Bark 推送流程。旧版推送路由、`POST /push`、MCP 端点均已可用，APNs 推送经过真机验证，兼容性行为由自动化合约测试覆盖。当前 111 个自动化测试全部通过。
 
 ## Migration Approach
 
@@ -215,8 +215,9 @@ Optional hardening variables ｜ 可选安全加固变量:
 - `MAX_BATCH_PUSH_COUNT` limits V2 batch fan-out when `device_keys` is provided. The default is `1000`; set `-1` only if you intentionally want no application-level cap.
 - `MAX_REQUEST_BODY_BYTES` limits parsed request bodies for JSON/form/MCP requests. The default is `4194304` bytes.
 - `MCP_SESSION_SECRET` signs optional MCP session IDs. It is not an access-control boundary: requests without `Mcp-Session-Id` are still accepted for compatibility, so use Basic Auth to restrict MCP access.
+- `CLOSE_REGISTER` disables new device registration when set to `"true"`. `POST /register` and `GET /register` return `403`, while `GET /register/:device_key` (key lookup) still works. Default is open.
 
-> **中文说明：** `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 保护所有非兼容性免费路由（`/`、`/ping`、`/healthz`、`/register` 仍绕过认证以保持 Bark 兼容）。`MAX_BATCH_PUSH_COUNT` 限制 `device_keys` 批量推送数量，默认 `1000`；只有在你明确接受无应用层上限时才应设为 `-1`。`MAX_REQUEST_BODY_BYTES` 限制 JSON/form/MCP 请求体大小，默认 4MB。`MCP_SESSION_SECRET` 用于签名可选 MCP session ID，但它不是访问控制边界；为了兼容，未携带 `Mcp-Session-Id` 的请求仍会被接受，限制 MCP 访问请使用 Basic Auth。
+> **中文说明：** `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` 保护所有非兼容性免费路由（`/`、`/ping`、`/healthz`、`/register` 仍绕过认证以保持 Bark 兼容）。`MAX_BATCH_PUSH_COUNT` 限制 `device_keys` 批量推送数量，默认 `1000`；只有在你明确接受无应用层上限时才应设为 `-1`。`MAX_REQUEST_BODY_BYTES` 限制 JSON/form/MCP 请求体大小，默认 4MB。`MCP_SESSION_SECRET` 用于签名可选 MCP session ID，但它不是访问控制边界；为了兼容，未携带 `Mcp-Session-Id` 的请求仍会被接受，限制 MCP 访问请使用 Basic Auth。`CLOSE_REGISTER` 设为 `"true"` 时关闭新设备注册，`POST /register` 和 `GET /register` 返回 `403`，`GET /register/:device_key`（密钥查询）不受影响；默认开放。
 
 If you prefer, `APNS_PRIVATE_KEY` can be stored as a Cloudflare secret instead of plaintext config:
 

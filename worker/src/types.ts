@@ -19,6 +19,7 @@ export interface AppConfig {
   maxBatchPushCount: number;
   maxRequestBodyBytes: number;
   mcpSessionSecret?: string;
+  closeRegister: boolean;
 }
 
 export interface BarkBindings {
@@ -29,6 +30,7 @@ export interface BarkBindings {
   MAX_BATCH_PUSH_COUNT?: string;
   MAX_REQUEST_BODY_BYTES?: string;
   MCP_SESSION_SECRET?: string;
+  CLOSE_REGISTER?: string | boolean;
   APP_VERSION?: string;
   APP_BUILD?: string;
   APP_COMMIT?: string;
