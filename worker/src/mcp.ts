@@ -11,13 +11,17 @@ export interface McpRouteOptions {
   deps: RuntimeDeps;
 }
 
-const ACCEPTED_PROTOCOL_VERSIONS = ["2025-03-26", "2025-06-18"] as const;
+const ACCEPTED_PROTOCOL_VERSIONS = [
+  "2025-03-26",
+  "2025-06-18",
+  "2025-11-25",
+] as const;
 const LEGACY_INITIALIZE_PROTOCOL_VERSIONS = ["2024-11-05"] as const;
 const SUPPORTED_PROTOCOL_VERSIONS = new Set<string>(ACCEPTED_PROTOCOL_VERSIONS);
 const LEGACY_INITIALIZE_PROTOCOL_VERSION_SET = new Set<string>(
   LEGACY_INITIALIZE_PROTOCOL_VERSIONS,
 );
-const SERVER_PROTOCOL_VERSION = "2025-06-18";
+const SERVER_PROTOCOL_VERSION = "2025-11-25";
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
 const PROTOCOL_HEADER = "MCP-Protocol-Version";
 
@@ -234,6 +238,10 @@ function validateProtocolHeader(headerValue: string | undefined): ProtocolValida
   return { valid: false, version: headerValue };
 }
 
+function isProtocolVersionDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 function negotiateInitializeProtocolVersion(
   clientVersion: string | undefined,
 ): InitializeNegotiationResult {
@@ -246,6 +254,10 @@ function negotiateInitializeProtocolVersion(
   }
 
   if (LEGACY_INITIALIZE_PROTOCOL_VERSION_SET.has(clientVersion)) {
+    return { valid: true, version: SERVER_PROTOCOL_VERSION };
+  }
+
+  if (isProtocolVersionDate(clientVersion)) {
     return { valid: true, version: SERVER_PROTOCOL_VERSION };
   }
 
