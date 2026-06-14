@@ -385,7 +385,7 @@ describe("mcp compatibility", () => {
 
   // --- Version negotiation ---
 
-  it("initialize with absent protocolVersion returns 2025-06-18", async () => {
+  it("initialize with absent protocolVersion returns 2025-11-25", async () => {
     const { app } = createHarness();
 
     const res = await jsonRpcRequest(app, "/mcp", "initialize", {
@@ -395,7 +395,7 @@ describe("mcp compatibility", () => {
 
     expect(res.status).toBe(200);
     const body = await parseMcpResponse(res);
-    expect(body.result!.protocolVersion).toBe("2025-06-18");
+    expect(body.result!.protocolVersion).toBe("2025-11-25");
   });
 
   it("initialize with protocolVersion 2025-03-26 returns 2025-03-26", async () => {
@@ -453,7 +453,22 @@ describe("mcp compatibility", () => {
     expect(body.result!.protocolVersion).toBe("2025-06-18");
   });
 
-  it("initialize with legacy protocolVersion 2024-11-05 negotiates to 2025-06-18", async () => {
+  it("initialize with protocolVersion 2025-11-25 returns 2025-11-25", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: { name: "claude-code", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.protocolVersion).toBe("2025-11-25");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-11-25");
+  });
+
+  it("initialize with legacy protocolVersion 2024-11-05 negotiates to 2025-11-25", async () => {
     const { app } = createHarness();
 
     const res = await jsonRpcRequest(app, "/mcp", "initialize", {
@@ -464,8 +479,23 @@ describe("mcp compatibility", () => {
 
     expect(res.status).toBe(200);
     const body = await parseMcpResponse(res);
-    expect(body.result!.protocolVersion).toBe("2025-06-18");
-    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
+    expect(body.result!.protocolVersion).toBe("2025-11-25");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-11-25");
+  });
+
+  it("initialize with unknown date protocolVersion negotiates to server latest", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: "2026-01-01",
+      capabilities: {},
+      clientInfo: { name: "future-client", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.protocolVersion).toBe("2025-11-25");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-11-25");
   });
 
   it("initialize with invalid protocolVersion returns 400", async () => {
@@ -490,7 +520,7 @@ describe("mcp compatibility", () => {
 
     const res = await jsonRpcRequest(app, "/mcp", "tools/list");
 
-    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-11-25");
   });
 
   it("405 responses include MCP-Protocol-Version header", async () => {
@@ -499,7 +529,7 @@ describe("mcp compatibility", () => {
     const res = await app.request("/mcp", { method: "GET" });
 
     expect(res.status).toBe(405);
-    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-11-25");
   });
 
   // --- Notification response status ---
@@ -572,7 +602,7 @@ describe("mcp compatibility", () => {
     expect(res.status).toBe(400);
     const body = await parseMcpResponse(res);
     expect(body.error!.message).toContain("Unsupported protocol version");
-    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-06-18");
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-11-25");
   });
 
   it("supported MCP-Protocol-Version header proceeds normally", async () => {
@@ -589,6 +619,22 @@ describe("mcp compatibility", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-03-26");
+  });
+
+  it("latest MCP-Protocol-Version header proceeds normally", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "mcp-protocol-version": "2025-11-25",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("MCP-Protocol-Version")).toBe("2025-11-25");
   });
 
   // --- Origin header ---
