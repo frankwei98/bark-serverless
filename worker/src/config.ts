@@ -22,7 +22,9 @@ export function parseMaxBatchPushCount(raw?: string): number {
     return -1;
   }
 
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_BATCH_PUSH_COUNT;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAX_BATCH_PUSH_COUNT;
 }
 
 export function parseMaxRequestBodyBytes(raw?: string): number {
@@ -31,7 +33,17 @@ export function parseMaxRequestBodyBytes(raw?: string): number {
   }
 
   const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_REQUEST_BODY_BYTES;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAX_REQUEST_BODY_BYTES;
+}
+
+export function parseCloseRegister(raw?: string | boolean): boolean {
+  if (typeof raw === "boolean") {
+    return raw;
+  }
+
+  return raw?.trim().toLowerCase() === "true";
 }
 
 export function createConfigFromEnv(env: BarkBindings): AppConfig {
@@ -42,6 +54,7 @@ export function createConfigFromEnv(env: BarkBindings): AppConfig {
     maxBatchPushCount: parseMaxBatchPushCount(env.MAX_BATCH_PUSH_COUNT),
     maxRequestBodyBytes: parseMaxRequestBodyBytes(env.MAX_REQUEST_BODY_BYTES),
     mcpSessionSecret: env.MCP_SESSION_SECRET,
+    closeRegister: parseCloseRegister(env.CLOSE_REGISTER),
   };
 }
 
