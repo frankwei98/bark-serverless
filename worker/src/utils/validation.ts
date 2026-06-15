@@ -63,5 +63,23 @@ export async function assertBodyWithinLimit(
   maxBytes = DEFAULT_MAX_REQUEST_BODY_BYTES,
 ): Promise<void> {
   assertContentLengthWithinLimit(request, maxBytes);
-  await readLimitedText(request.clone(), maxBytes);
+
+  if (!request.body) {
+    return;
+  }
+
+  const reader = request.clone().body!.getReader();
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        throw new Error("request body is too large");
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }

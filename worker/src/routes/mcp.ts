@@ -5,6 +5,7 @@ import { pushOne } from "@/routes/push";
 import { timingSafeStringEqual } from "@/utils/timing-safe";
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { readLimitedText } from "@/utils/validation";
+import { isRecord } from "@/utils/objects";
 
 export interface McpRouteOptions {
   config: AppConfig;
@@ -81,10 +82,6 @@ function normalizeJsonRpcId(id: unknown): JsonRpcId {
   }
 
   return null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isJsonRpcObject(value: unknown): value is JsonRpcRequest {

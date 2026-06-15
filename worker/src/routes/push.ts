@@ -3,6 +3,7 @@ import type { Context, Hono } from "hono";
 import { failed, getErrorMessage, success, withData } from "@/utils/responses";
 import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
 import { assertBodyWithinLimit, readLimitedText } from "@/utils/validation";
+import { isRecord } from "@/utils/objects";
 
 export interface PushRouteOptions {
   config: AppConfig;
@@ -15,10 +16,6 @@ export interface PushAttempt {
 }
 
 const BATCH_PUSH_CONCURRENCY = 50;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isJsonContentType(contentType: string): boolean {
   return contentType.toLowerCase().startsWith("application/json");
@@ -164,6 +161,10 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
   return message;
 }
 
+function isApnsError(error: ApnsSendError): boolean {
+  return "statusCode" in error && error.statusCode !== undefined;
+}
+
 export async function pushOne(params: ParamMap, options: PushRouteOptions): Promise<PushAttempt> {
   const message = buildPushMessage(params);
 
@@ -181,13 +182,15 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
   } catch (error) {
     const normalized = normalizePushError(error);
 
-    if (!("statusCode" in normalized)) {
+    // Registry errors (e.g. key not found) lack a statusCode — these are client errors.
+    if (!isApnsError(normalized)) {
       return {
         code: 400,
         error: new Error(`failed to get device token: ${normalized.message}`),
       };
     }
 
+    // APNs rejected the token — clean it up so future pushes fail fast.
     if (isBadDeviceTokenError(normalized)) {
       await options.deps.registry.saveDeviceTokenByKey(message.deviceKey, "");
     }

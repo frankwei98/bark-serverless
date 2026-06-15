@@ -3,6 +3,7 @@ import type { Context, Hono } from "hono";
 import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { assertBodyWithinLimit, readLimitedText } from "@/utils/validation";
+import { isRecord } from "@/utils/objects";
 
 interface DeviceInfo {
   device_key?: string;
@@ -14,10 +15,6 @@ interface DeviceInfo {
 export interface RegisterRouteOptions {
   config: AppConfig;
   deps: RuntimeDeps;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function parseRegisterBody(request: Request, maxBodyBytes: number): Promise<DeviceInfo> {
