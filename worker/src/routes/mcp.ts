@@ -1,10 +1,10 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Context, Hono } from "hono";
 
-import { pushOne } from "@/push";
-import { timingSafeStringEqual } from "@/timing-safe";
+import { pushOne } from "@/routes/push";
+import { timingSafeStringEqual } from "@/utils/timing-safe";
 import type { AppConfig, RuntimeDeps } from "@/types";
-import { readLimitedText } from "@/validation";
+import { readLimitedText } from "@/utils/validation";
 
 export interface McpRouteOptions {
   config: AppConfig;
