@@ -1,8 +1,8 @@
 import type { Context, Hono } from "hono";
 
-import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } from "@/responses";
+import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
 import type { AppConfig, RuntimeDeps } from "@/types";
-import { assertBodyWithinLimit, readLimitedText } from "@/validation";
+import { assertBodyWithinLimit, readLimitedText } from "@/utils/validation";
 
 interface DeviceInfo {
   device_key?: string;

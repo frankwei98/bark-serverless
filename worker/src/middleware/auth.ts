@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 
 import { normalizeUrlPrefix } from "@/config";
-import { timingSafeStringEqual } from "@/timing-safe";
+import { timingSafeStringEqual } from "@/utils/timing-safe";
 import type { AppConfig } from "@/types";
 
 interface AuthFreeRoute {

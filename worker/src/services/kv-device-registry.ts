@@ -1,4 +1,4 @@
-import { generateDeviceKey } from "@/device-key";
+import { generateDeviceKey } from "@/services/device-key";
 import type { DeviceRegistry } from "@/types";
 
 const DEVICE_KEY_PREFIX = "device:";

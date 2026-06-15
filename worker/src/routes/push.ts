@@ -1,8 +1,8 @@
 import type { Context, Hono } from "hono";
 
-import { failed, getErrorMessage, success, withData } from "@/responses";
+import { failed, getErrorMessage, success, withData } from "@/utils/responses";
 import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
-import { assertBodyWithinLimit, readLimitedText } from "@/validation";
+import { assertBodyWithinLimit, readLimitedText } from "@/utils/validation";
 
 export interface PushRouteOptions {
   config: AppConfig;
