@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createApnsError, createHarness } from "./helpers/fakes";
 
@@ -364,6 +364,32 @@ describe("push routes", () => {
       message: "push failed: Unregistered",
     });
     expect(registry.snapshot()).toEqual({});
+  });
+
+  it("treats plain send failures as push failures", async () => {
+    const { app, sender } = createHarness({
+      registrySeed: {
+        alpha: "token-alpha",
+      },
+    });
+    vi.spyOn(sender, "send").mockRejectedValueOnce(new Error("unexpected send failure"));
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "alpha",
+        body: "hello",
+      }),
+    });
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 500,
+      message: "push failed: unexpected send failure",
+    });
   });
 
   it("limits batch push concurrency while preserving input order", async () => {

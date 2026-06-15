@@ -161,10 +161,6 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
   return message;
 }
 
-function isApnsError(error: ApnsSendError): boolean {
-  return "statusCode" in error && error.statusCode !== undefined;
-}
-
 export async function pushOne(params: ParamMap, options: PushRouteOptions): Promise<PushAttempt> {
   const message = buildPushMessage(params);
 
@@ -172,8 +168,19 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
     return { code: 400, error: new Error("device key is empty") };
   }
 
+  let deviceToken: string;
   try {
-    const deviceToken = await options.deps.registry.deviceTokenByKey(message.deviceKey);
+    deviceToken = await options.deps.registry.deviceTokenByKey(message.deviceKey);
+  } catch (error) {
+    const normalized = normalizePushError(error);
+
+    return {
+      code: 400,
+      error: new Error(`failed to get device token: ${normalized.message}`),
+    };
+  }
+
+  try {
     await options.deps.pushSender.send({
       ...message,
       deviceToken,
@@ -181,14 +188,6 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
     return { code: 200 };
   } catch (error) {
     const normalized = normalizePushError(error);
-
-    // Registry errors (e.g. key not found) lack a statusCode — these are client errors.
-    if (!isApnsError(normalized)) {
-      return {
-        code: 400,
-        error: new Error(`failed to get device token: ${normalized.message}`),
-      };
-    }
 
     // APNs rejected the token — clean it up so future pushes fail fast.
     if (isBadDeviceTokenError(normalized)) {
