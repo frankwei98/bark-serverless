@@ -8,9 +8,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["@cloudflare/workers-types", "node"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["worker/src/*"]
+      "@/*": ["./worker/src/*"]
     }
   },
   "include": ["worker/src/**/*.ts", "worker/test/**/*.ts", "vitest.config.ts"]
