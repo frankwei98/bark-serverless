@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CloudflareApnsClient } from "@/cloudflare-apns-client";
+import { CloudflareApnsClient } from "@/services/cloudflare-apns-client";
 import type { PushMessage } from "@/types";
 
 const TEST_PKCS8_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { generateDeviceKey } from "@/device-key";
+import { generateDeviceKey } from "@/services/device-key";
 
 afterEach(() => {
   vi.restoreAllMocks();

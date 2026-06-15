@@ -1,5 +1,5 @@
 import type { AppConfig, BarkBindings, BuildInfo } from "@/types";
-import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/validation";
+import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/utils/validation";
 
 export const DEFAULT_MAX_BATCH_PUSH_COUNT = 1000;
 
