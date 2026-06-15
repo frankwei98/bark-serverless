@@ -1,7 +1,7 @@
 import { createApp } from "@/app";
 import { createBuildInfoFromEnv, createConfigFromEnv } from "@/config";
-import { CloudflareApnsClient } from "@/cloudflare-apns-client";
-import { KVDeviceRegistry } from "@/kv-device-registry";
+import { CloudflareApnsClient } from "@/services/cloudflare-apns-client";
+import { KVDeviceRegistry } from "@/services/kv-device-registry";
 import type { BarkBindings } from "@/types";
 
 const appCache = new WeakMap<BarkBindings, ReturnType<typeof createApp>>();

@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
-import { createBasicAuthMiddleware } from "@/auth";
+import { createBasicAuthMiddleware } from "@/middleware/auth";
 import { normalizeUrlPrefix } from "@/config";
-import { registerMcpRoutes } from "@/mcp";
-import { registerPushRoutes } from "@/push";
-import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE } from "@/responses";
-import { registerRegisterRoutes } from "@/register";
+import { registerMcpRoutes } from "@/routes/mcp";
+import { registerPushRoutes } from "@/routes/push";
+import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE } from "@/utils/responses";
+import { registerRegisterRoutes } from "@/routes/register";
 import type { AppConfig, RuntimeDeps } from "@/types";
 
 export interface CreateAppOptions {

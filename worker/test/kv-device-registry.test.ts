@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { KVDeviceRegistry } from "@/kv-device-registry";
+import { KVDeviceRegistry } from "@/services/kv-device-registry";
 
 function createNamespace() {
   return {
