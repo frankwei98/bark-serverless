@@ -389,6 +389,7 @@ describe("CloudflareApnsClient", () => {
 
   it("attaches a configured timeout signal to APNs requests", async () => {
     installCryptoStub();
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
 
     const client = new CloudflareApnsClient({
       privateKey: TEST_PKCS8_PRIVATE_KEY,
@@ -403,6 +404,7 @@ describe("CloudflareApnsClient", () => {
 
     await client.send(createMessage());
 
+    expect(timeoutSpy).toHaveBeenCalledWith(1_250);
     const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
     expect(calls[0]![1].signal).toBeInstanceOf(AbortSignal);
   });
