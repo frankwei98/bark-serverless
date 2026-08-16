@@ -55,7 +55,7 @@ export interface DeviceRegistry {
   countAll(): Promise<number>;
   deviceTokenByKey(key: string): Promise<string>;
   saveDeviceTokenByKey(key: string, token: string): Promise<string>;
-  deleteDeviceByKey(key: string): Promise<void>;
+  deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean>;
 }
 
 export interface PushMessage {

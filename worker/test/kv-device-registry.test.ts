@@ -44,4 +44,18 @@ describe("KVDeviceRegistry count caching", () => {
 
     expect(namespace.list).toHaveBeenCalledTimes(3);
   });
+
+  it("only deletes a device when its stored token still matches", async () => {
+    const namespace = createNamespace();
+    const get = namespace.get as unknown as ReturnType<typeof vi.fn>;
+    get.mockResolvedValue("new-token");
+    const registry = new KVDeviceRegistry(namespace, () => 1_000);
+
+    await expect(
+      registry.deleteDeviceByKey("alpha", "old-token"),
+    ).resolves.toBe(false);
+
+    expect(namespace.get).toHaveBeenCalledWith("device:alpha");
+    expect(namespace.delete).not.toHaveBeenCalled();
+  });
 });

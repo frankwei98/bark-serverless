@@ -53,8 +53,13 @@ export class InMemoryDeviceRegistry implements DeviceRegistry {
     return nextKey;
   }
 
-  async deleteDeviceByKey(key: string): Promise<void> {
+  async deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean> {
+    if (expectedToken !== undefined && this.store.get(key) !== expectedToken) {
+      return false;
+    }
+
     this.store.delete(key);
+    return true;
   }
 }
 

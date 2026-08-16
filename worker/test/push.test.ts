@@ -366,6 +366,32 @@ describe("push routes", () => {
     expect(registry.snapshot()).toEqual({});
   });
 
+  it("does not delete a newly registered token when an older token is rejected", async () => {
+    const { app, registry, sender } = createHarness({
+      registrySeed: {
+        alpha: "old-token",
+      },
+    });
+    sender.send = async () => {
+      await registry.saveDeviceTokenByKey("alpha", "new-token");
+      throw createApnsError("BadDeviceToken", 400);
+    };
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "alpha",
+        body: "hello",
+      }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(registry.snapshot()).toEqual({ alpha: "new-token" });
+  });
+
   it("treats plain send failures as push failures", async () => {
     const { app, sender } = createHarness({
       registrySeed: {
