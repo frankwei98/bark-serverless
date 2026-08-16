@@ -2,7 +2,7 @@ import type { Context, Hono } from "hono";
 
 import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
 import type { AppConfig, RuntimeDeps } from "@/types";
-import { assertBodyWithinLimit, readLimitedText } from "@/utils/validation";
+import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
 import { MAX_DEVICE_KEY_BYTES } from "@/services/kv-device-registry";
 
@@ -37,22 +37,16 @@ async function parseRegisterBody(request: Request, maxBodyBytes: number): Promis
     return isRecord(parsed) ? (parsed as DeviceInfo) : {};
   }
 
-  await assertBodyWithinLimit(request, maxBodyBytes);
+  const formData = await readLimitedFormData(request, maxBodyBytes);
+  const body: DeviceInfo = {};
 
-  try {
-    const formData = await request.formData();
-    const body: DeviceInfo = {};
+  formData.forEach((value, key) => {
+    if (typeof value === "string") {
+      body[key as keyof DeviceInfo] = value;
+    }
+  });
 
-    formData.forEach((value, key) => {
-      if (typeof value === "string") {
-        body[key as keyof DeviceInfo] = value;
-      }
-    });
-
-    return body;
-  } catch {
-    return {};
-  }
+  return body;
 }
 
 async function doRegister(c: Context, options: RegisterRouteOptions, compat: boolean) {

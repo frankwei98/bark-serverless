@@ -51,6 +51,27 @@ describe("register routes", () => {
     });
   });
 
+  it("registers a device through a multipart form", async () => {
+    const { app } = createHarness();
+    const form = new FormData();
+    form.set("device_key", "multipart-key");
+    form.set("device_token", "multipart-token");
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      body: form,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 200,
+      data: {
+        device_key: "multipart-key",
+        device_token: "multipart-token",
+      },
+    });
+  });
+
   it("supports legacy key aliases", async () => {
     const { app } = createHarness();
 

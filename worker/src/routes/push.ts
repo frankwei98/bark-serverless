@@ -2,7 +2,7 @@ import type { Context, Hono } from "hono";
 
 import { failed, getErrorMessage, success, withData } from "@/utils/responses";
 import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
-import { assertBodyWithinLimit, readLimitedText } from "@/utils/validation";
+import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
 
 export interface PushRouteOptions {
@@ -55,22 +55,16 @@ function lowerCaseEntryMap(source: Iterable<[string, string]>): ParamMap {
 }
 
 async function parseFormData(request: Request, maxBodyBytes: number): Promise<ParamMap> {
-  await assertBodyWithinLimit(request, maxBodyBytes);
+  const formData = await readLimitedFormData(request, maxBodyBytes);
+  const params: ParamMap = {};
 
-  try {
-    const formData = await request.formData();
-    const params: ParamMap = {};
+  formData.forEach((value, key) => {
+    if (typeof value === "string") {
+      params[key.toLowerCase()] = value;
+    }
+  });
 
-    formData.forEach((value, key) => {
-      if (typeof value === "string") {
-        params[key.toLowerCase()] = value;
-      }
-    });
-
-    return params;
-  } catch {
-    return {};
-  }
+  return params;
 }
 
 async function parseJsonBody(request: Request, maxBodyBytes: number): Promise<ParamMap> {
