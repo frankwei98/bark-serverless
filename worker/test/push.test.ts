@@ -1,8 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { buildPushMessage } from "@/routes/push";
 import { createApnsError, createHarness } from "./helpers/fakes";
 
 describe("push routes", () => {
+  it("builds extension parameters in a prototype-free dictionary", () => {
+    const params = JSON.parse(
+      '{"device_key":"alpha","metadata":{"__proto__":{"delete":"1"}}}',
+    ) as Record<string, unknown>;
+
+    const message = buildPushMessage(params);
+
+    expect(Object.getPrototypeOf(message.extParams)).toBeNull();
+    expect(message.extParams.delete).toBeUndefined();
+    expect(Object.hasOwn(message.extParams, "__proto__")).toBe(true);
+  });
+
   it("handles a V1 path-based push", async () => {
     const { app, sender } = createHarness({
       registrySeed: {

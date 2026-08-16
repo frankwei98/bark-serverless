@@ -105,7 +105,7 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
     subtitle: "",
     body: "",
     sound: "1107",
-    extParams: {} as Record<string, unknown>,
+    extParams: Object.create(null) as Record<string, unknown>,
     id: undefined as string | undefined,
   };
 
