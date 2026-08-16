@@ -4,6 +4,21 @@ import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/utils/validation";
 export const DEFAULT_MAX_BATCH_PUSH_COUNT = 1000;
 export const DEFAULT_APNS_REQUEST_TIMEOUT_MS = 10_000;
 
+function parsePositiveInteger(
+  raw: string | undefined,
+  fallback: number,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number {
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(parsed, maximum)
+    : fallback;
+}
+
 export function normalizeUrlPrefix(prefix?: string): string {
   if (!prefix || prefix === "/") {
     return "/";
@@ -14,36 +29,19 @@ export function normalizeUrlPrefix(prefix?: string): string {
 }
 
 export function parseMaxBatchPushCount(raw?: string): number {
-  if (!raw) {
-    return DEFAULT_MAX_BATCH_PUSH_COUNT;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.min(parsed, DEFAULT_MAX_BATCH_PUSH_COUNT)
-    : DEFAULT_MAX_BATCH_PUSH_COUNT;
+  return parsePositiveInteger(
+    raw,
+    DEFAULT_MAX_BATCH_PUSH_COUNT,
+    DEFAULT_MAX_BATCH_PUSH_COUNT,
+  );
 }
 
 export function parseMaxRequestBodyBytes(raw?: string): number {
-  if (!raw) {
-    return DEFAULT_MAX_REQUEST_BODY_BYTES;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_MAX_REQUEST_BODY_BYTES;
+  return parsePositiveInteger(raw, DEFAULT_MAX_REQUEST_BODY_BYTES);
 }
 
 export function parseApnsRequestTimeoutMs(raw?: string): number {
-  if (!raw) {
-    return DEFAULT_APNS_REQUEST_TIMEOUT_MS;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_APNS_REQUEST_TIMEOUT_MS;
+  return parsePositiveInteger(raw, DEFAULT_APNS_REQUEST_TIMEOUT_MS);
 }
 
 export function parseCloseRegister(raw?: string | boolean): boolean {
