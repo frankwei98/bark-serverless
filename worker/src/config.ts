@@ -19,12 +19,8 @@ export function parseMaxBatchPushCount(raw?: string): number {
   }
 
   const parsed = Number.parseInt(raw, 10);
-  if (parsed === -1) {
-    return -1;
-  }
-
   return Number.isFinite(parsed) && parsed > 0
-    ? parsed
+    ? Math.min(parsed, DEFAULT_MAX_BATCH_PUSH_COUNT)
     : DEFAULT_MAX_BATCH_PUSH_COUNT;
 }
 
