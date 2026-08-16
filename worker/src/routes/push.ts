@@ -191,7 +191,7 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
 
     // APNs rejected the token — clean it up so future pushes fail fast.
     if (isBadDeviceTokenError(normalized)) {
-      await options.deps.registry.saveDeviceTokenByKey(message.deviceKey, "");
+      await options.deps.registry.deleteDeviceByKey(message.deviceKey, deviceToken);
     }
 
     return {

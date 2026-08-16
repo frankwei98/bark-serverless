@@ -67,8 +67,16 @@ export class KVDeviceRegistry implements DeviceRegistry {
     return nextKey;
   }
 
-  async deleteDeviceByKey(key: string): Promise<void> {
+  async deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean> {
+    if (expectedToken !== undefined) {
+      const currentToken = await this.namespace.get(storageKey(key));
+      if (currentToken !== expectedToken) {
+        return false;
+      }
+    }
+
     await this.namespace.delete(storageKey(key));
     this.invalidateCountCache();
+    return true;
   }
 }
