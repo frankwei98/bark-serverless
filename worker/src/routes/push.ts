@@ -309,10 +309,7 @@ async function routeDoPushV2(c: Context, options: PushRouteOptions) {
     return c.json(success(options.deps.now()), 200);
   }
 
-  if (
-    options.config.maxBatchPushCount !== -1 &&
-    deviceKeys.length > options.config.maxBatchPushCount
-  ) {
+  if (deviceKeys.length > options.config.maxBatchPushCount) {
     return c.json(
       failed(
         options.deps.now(),

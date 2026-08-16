@@ -13,8 +13,9 @@ describe("parseMaxBatchPushCount", () => {
     expect(parseMaxBatchPushCount()).toBe(DEFAULT_MAX_BATCH_PUSH_COUNT);
   });
 
-  it("keeps explicit unlimited mode for -1", () => {
-    expect(parseMaxBatchPushCount("-1")).toBe(-1);
+  it("caps unlimited and oversized values at the hard limit", () => {
+    expect(parseMaxBatchPushCount("-1")).toBe(DEFAULT_MAX_BATCH_PUSH_COUNT);
+    expect(parseMaxBatchPushCount("1000000")).toBe(DEFAULT_MAX_BATCH_PUSH_COUNT);
   });
 
   it("falls back to the finite default for invalid values", () => {
