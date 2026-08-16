@@ -93,7 +93,29 @@ function isJsonRpcNotification(body: JsonRpcRequest): boolean {
 }
 
 function isJsonRpcClientResponse(body: JsonRpcRequest): boolean {
-  return "id" in body && !("method" in body);
+  const hasResult = Object.hasOwn(body, "result");
+  const hasError = Object.hasOwn(body, "error");
+  if (
+    !("id" in body) ||
+    "method" in body ||
+    hasResult === hasError
+  ) {
+    return false;
+  }
+
+  if (!hasError) {
+    return true;
+  }
+
+  return (
+    isRecord(body.error) &&
+    typeof body.error.code === "number" &&
+    typeof body.error.message === "string"
+  );
+}
+
+function isJsonRpcRequestMessage(body: JsonRpcRequest): boolean {
+  return typeof body.method === "string";
 }
 
 function base64urlEncode(data: ArrayBuffer | Uint8Array): string {
@@ -579,6 +601,18 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
     }
 
     body = parsed;
+
+    if (!isJsonRpcRequestMessage(body) && !isJsonRpcClientResponse(body)) {
+      setProtocolHeader(c, responseProtocolVersion);
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32600, message: "Invalid Request" },
+        } satisfies JsonRpcErrorResponse,
+        400,
+      );
+    }
 
     let negotiatedInitializeProtocolVersion: string | undefined;
     if (body.method === "initialize") {

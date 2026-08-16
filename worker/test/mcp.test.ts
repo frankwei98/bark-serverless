@@ -558,6 +558,59 @@ describe("mcp compatibility", () => {
     expect(text).toBe("");
   });
 
+  it("client error response payload returns 202 with empty body", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        error: { code: -32603, message: "Internal error" },
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    const text = await res.text();
+    expect(text).toBe("");
+  });
+
+  it("rejects client responses missing both result and error", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1 }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.code).toBe(-32600);
+    expect(body.error!.message).toBe("Invalid Request");
+  });
+
+  it("rejects client responses containing both result and error", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        result: {},
+        error: { code: -32603, message: "Internal error" },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.code).toBe(-32600);
+    expect(body.error!.message).toBe("Invalid Request");
+  });
+
   // --- Accept header ---
 
   it("Accept header not including application/json returns 406", async () => {
