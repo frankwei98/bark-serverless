@@ -1,3 +1,7 @@
+import type {
+  DeviceRegistryCoordinator,
+} from "@/services/device-registry-coordinator";
+
 export interface CommonResp {
   code: number;
   message: string;
@@ -25,6 +29,7 @@ export interface AppConfig {
 
 export interface BarkBindings {
   DEVICE_REGISTRY: KVNamespace;
+  DEVICE_REGISTRY_COORDINATOR: DurableObjectNamespace<DeviceRegistryCoordinator>;
   URL_PREFIX?: string;
   BASIC_AUTH_USER?: string;
   BASIC_AUTH_PASSWORD?: string;

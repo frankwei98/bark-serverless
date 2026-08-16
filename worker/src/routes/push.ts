@@ -185,9 +185,12 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
   } catch (error) {
     const normalized = normalizePushError(error);
 
-    // APNs rejected the token — clean it up so future pushes fail fast.
+    // The registry coordinates this compare-and-delete with re-registration.
     if (isBadDeviceTokenError(normalized)) {
-      await options.deps.registry.deleteDeviceByKey(message.deviceKey, deviceToken);
+      await options.deps.registry.deleteDeviceByKey(
+        message.deviceKey,
+        deviceToken,
+      );
     }
 
     return {

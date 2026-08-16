@@ -1,20 +1,25 @@
 import { generateDeviceKey } from "@/services/device-key";
+import type {
+  DeviceRegistryCoordinatorStub,
+} from "@/services/device-registry-coordinator";
+import {
+  DEVICE_KEY_PREFIX,
+  deviceStorageKey,
+} from "@/services/device-registry-storage";
 import type { DeviceRegistry } from "@/types";
 
-const DEVICE_KEY_PREFIX = "device:";
 const KV_MAX_KEY_BYTES = 512;
 const DEVICE_COUNT_CACHE_TTL_MS = 60 * 1000;
 const textEncoder = new TextEncoder();
-
-function storageKey(key: string): string {
-  return `${DEVICE_KEY_PREFIX}${key}`;
-}
 
 export class KVDeviceRegistry implements DeviceRegistry {
   private cachedCount: { value: number; expiresAt: number } | null = null;
 
   constructor(
     private readonly namespace: KVNamespace,
+    private readonly coordinatorForKey: (
+      key: string,
+    ) => DeviceRegistryCoordinatorStub,
     private readonly now: () => number = () => Date.now(),
   ) {}
 
@@ -45,11 +50,13 @@ export class KVDeviceRegistry implements DeviceRegistry {
   }
 
   canStoreDeviceKey(key: string): boolean {
-    return textEncoder.encode(storageKey(key)).byteLength <= KV_MAX_KEY_BYTES;
+    return (
+      textEncoder.encode(deviceStorageKey(key)).byteLength <= KV_MAX_KEY_BYTES
+    );
   }
 
   async deviceTokenByKey(key: string): Promise<string> {
-    const token = await this.namespace.get(storageKey(key));
+    const token = await this.coordinatorForKey(key).deviceTokenByKey(key);
     if (token === null) {
       throw new Error("key not found");
     }
@@ -61,28 +68,19 @@ export class KVDeviceRegistry implements DeviceRegistry {
 
   async saveDeviceTokenByKey(key: string, token: string): Promise<string> {
     const nextKey = key || generateDeviceKey();
-
-    if (token.length === 0) {
-      await this.namespace.delete(storageKey(nextKey));
-      this.invalidateCountCache();
-      return nextKey;
-    }
-
-    await this.namespace.put(storageKey(nextKey), token);
+    await this.coordinatorForKey(nextKey).saveDeviceTokenByKey(nextKey, token);
     this.invalidateCountCache();
     return nextKey;
   }
 
   async deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean> {
-    if (expectedToken !== undefined) {
-      const currentToken = await this.namespace.get(storageKey(key));
-      if (currentToken !== expectedToken) {
-        return false;
-      }
+    const deleted = await this.coordinatorForKey(key).deleteDeviceByKey(
+      key,
+      expectedToken,
+    );
+    if (deleted) {
+      this.invalidateCountCache();
     }
-
-    await this.namespace.delete(storageKey(key));
-    this.invalidateCountCache();
-    return true;
+    return deleted;
   }
 }
