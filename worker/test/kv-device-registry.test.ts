@@ -16,6 +16,13 @@ function createNamespace() {
 }
 
 describe("KVDeviceRegistry count caching", () => {
+  it("validates device keys against the complete KV storage key", () => {
+    const registry = new KVDeviceRegistry(createNamespace(), () => 1_000);
+
+    expect(registry.canStoreDeviceKey("x".repeat(505))).toBe(true);
+    expect(registry.canStoreDeviceKey("é".repeat(253))).toBe(false);
+  });
+
   it("reuses a recent cached device count", async () => {
     const namespace = createNamespace();
     let now = 1_000;

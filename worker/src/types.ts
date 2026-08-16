@@ -55,6 +55,7 @@ export type ParamMap = Record<string, unknown>;
 
 export interface DeviceRegistry {
   countAll(): Promise<number>;
+  canStoreDeviceKey(key: string): boolean;
   deviceTokenByKey(key: string): Promise<string>;
   saveDeviceTokenByKey(key: string, token: string): Promise<string>;
   deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean>;

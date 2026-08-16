@@ -4,7 +4,6 @@ import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } fr
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
-import { MAX_DEVICE_KEY_BYTES } from "@/services/device-key";
 
 interface DeviceInfo {
   device_key?: unknown;
@@ -17,8 +16,6 @@ export interface RegisterRouteOptions {
   config: AppConfig;
   deps: RuntimeDeps;
 }
-
-const textEncoder = new TextEncoder();
 
 function preferPrimaryField(primary: unknown, legacy: unknown): unknown {
   return primary === undefined || primary === "" ? (legacy ?? "") : primary;
@@ -85,7 +82,7 @@ async function doRegister(c: Context, options: RegisterRouteOptions, compat: boo
   const deviceKey = deviceKeyValue;
   const deviceToken = deviceTokenValue;
 
-  if (textEncoder.encode(deviceKey).byteLength > MAX_DEVICE_KEY_BYTES) {
+  if (!options.deps.registry.canStoreDeviceKey(deviceKey)) {
     return c.json(failed(options.deps.now(), 400, "device key is invalid"), 400);
   }
 
