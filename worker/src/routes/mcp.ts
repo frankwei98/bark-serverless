@@ -26,6 +26,45 @@ const SERVER_PROTOCOL_VERSION = "2025-11-25";
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
 const PROTOCOL_HEADER = "MCP-Protocol-Version";
 
+function acceptsJson(accept: string): boolean {
+  let bestSpecificity = -1;
+  let bestQuality = 0;
+
+  for (const range of accept.split(",")) {
+    const [rawMediaType, ...rawParameters] = range.split(";");
+    const mediaType = rawMediaType.trim().toLowerCase();
+    const specificity =
+      mediaType === "application/json"
+        ? 2
+        : mediaType === "application/*"
+          ? 1
+          : mediaType === "*/*"
+            ? 0
+            : -1;
+    if (specificity < 0) {
+      continue;
+    }
+
+    let quality = 1;
+    const qualityParameter = rawParameters.find((parameter) =>
+      parameter.trim().toLowerCase().startsWith("q="),
+    );
+    if (qualityParameter !== undefined) {
+      const parsed = Number(qualityParameter.trim().slice(2));
+      quality = Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0;
+    }
+
+    if (specificity > bestSpecificity) {
+      bestSpecificity = specificity;
+      bestQuality = quality;
+    } else if (specificity === bestSpecificity) {
+      bestQuality = Math.max(bestQuality, quality);
+    }
+  }
+
+  return bestQuality > 0;
+}
+
 type JsonRpcId = number | string | null;
 
 interface JsonRpcRequest {
@@ -534,7 +573,7 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
 
     // Accept header validation
     const accept = c.req.header("accept");
-    if (accept !== undefined && !accept.includes("application/json")) {
+    if (accept !== undefined && !acceptsJson(accept)) {
       setProtocolHeader(c, responseProtocolVersion);
       return c.text("Not Acceptable", 406);
     }

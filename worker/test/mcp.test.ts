@@ -640,6 +640,65 @@ describe("mcp compatibility", () => {
     expect(res.status).toBe(200);
   });
 
+  it("rejects JSON-derived media types that do not accept application/json", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json-patch+json",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(406);
+  });
+
+  it("rejects application/json when its quality weight is zero", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json;q=0, */*;q=1",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    expect(res.status).toBe(406);
+  });
+
+  it("accepts case-insensitive JSON media types and wildcards", async () => {
+    const { app } = createHarness();
+    const requestBody = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/list",
+    });
+
+    const caseInsensitive = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "Application/JSON; q=0.5",
+      },
+      body: requestBody,
+    });
+    const wildcard = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/*",
+      },
+      body: requestBody,
+    });
+
+    expect(caseInsensitive.status).toBe(200);
+    expect(wildcard.status).toBe(200);
+  });
+
   it("unsupported MCP-Protocol-Version header returns 400", async () => {
     const { app } = createHarness();
 
