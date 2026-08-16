@@ -285,6 +285,33 @@ describe("push routes", () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it("cancels a request stream rejected by its content length", async () => {
+    const { app } = createHarness({
+      config: { maxRequestBodyBytes: 4 },
+    });
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("12345"));
+      },
+      cancel,
+    });
+    const request = new Request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": "5",
+      },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const response = await app.request(request);
+
+    expect(response.status).toBe(400);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it("returns 400 when path params contain invalid percent encoding", async () => {
     const { app } = createHarness();
 
