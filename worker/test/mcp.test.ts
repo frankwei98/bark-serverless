@@ -324,20 +324,50 @@ describe("mcp compatibility", () => {
     expect(body.error!.message).toContain("Method not found");
   });
 
-  it("normalizes non-standard ids to null in MCP error responses", async () => {
+  it.each([
+    ["an object", {}],
+    ["a boolean", true],
+    ["null", null],
+    ["a fractional number", 1.5],
+  ])("rejects request ids containing %s", async (_label, id) => {
     const { app } = createHarness();
 
     const res = await app.request("/mcp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: true, method: "unknown/method" }),
+      body: JSON.stringify({ jsonrpc: "2.0", id, method: "unknown/method" }),
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
     const body = await parseMcpResponse(res);
     expect(body.jsonrpc).toBe("2.0");
     expect(body.id).toBeNull();
-    expect(body.error!.code).toBe(-32601);
+    expect(body.error!.code).toBe(-32600);
+    expect(body.error!.message).toBe("Invalid Request");
+  });
+
+  it.each([
+    ["result", { result: {} }],
+    ["error", { error: { code: -32603, message: "Internal error" } }],
+  ])("rejects request messages containing a %s field", async (_label, responseField) => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        ...responseField,
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.id).toBeNull();
+    expect(body.error!.code).toBe(-32600);
+    expect(body.error!.message).toBe("Invalid Request");
   });
 
   it("unknown tool name returns method not found instead of sending a push", async () => {

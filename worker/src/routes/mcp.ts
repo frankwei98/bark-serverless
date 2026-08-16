@@ -71,6 +71,10 @@ function isJsonRpcId(value: unknown): value is JsonRpcId {
   return typeof value === "number" || typeof value === "string" || value === null;
 }
 
+function isJsonRpcRequestId(value: unknown): value is number | string {
+  return typeof value === "string" || (typeof value === "number" && Number.isInteger(value));
+}
+
 interface JsonRpcRequest {
   jsonrpc: "2.0";
   id?: JsonRpcId;
@@ -159,7 +163,12 @@ function isJsonRpcClientResponse(body: JsonRpcRequest): boolean {
 }
 
 function isJsonRpcRequestMessage(body: JsonRpcRequest): boolean {
-  return typeof body.method === "string";
+  return (
+    typeof body.method === "string" &&
+    (!("id" in body) || isJsonRpcRequestId(body.id)) &&
+    !Object.hasOwn(body, "result") &&
+    !Object.hasOwn(body, "error")
+  );
 }
 
 function base64urlEncode(data: ArrayBuffer | Uint8Array): string {
