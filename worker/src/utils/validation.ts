@@ -29,57 +29,78 @@ export async function readLimitedText(
   request: BodySource,
   maxBytes = DEFAULT_MAX_REQUEST_BODY_BYTES,
 ): Promise<string> {
+  const bytes = await readLimitedBytes(request, maxBytes);
+  return new TextDecoder().decode(bytes);
+}
+
+export async function readLimitedBytes(
+  request: BodySource,
+  maxBytes = DEFAULT_MAX_REQUEST_BODY_BYTES,
+): Promise<Uint8Array> {
   assertContentLengthWithinLimit(request, maxBytes);
 
   if (!request.body) {
-    return "";
+    return new Uint8Array();
   }
 
   const reader = request.body.getReader();
-  const decoder = new TextDecoder();
-  const chunks: string[] = [];
+  const chunks: Uint8Array[] = [];
   let total = 0;
+  let completed = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    total += value.byteLength;
-    if (total > maxBytes) {
-      throw new Error("request body is too large");
-    }
-
-    chunks.push(decoder.decode(value, { stream: true }));
-  }
-
-  chunks.push(decoder.decode());
-  return chunks.join("");
-}
-
-export async function assertBodyWithinLimit(
-  request: Request,
-  maxBytes = DEFAULT_MAX_REQUEST_BODY_BYTES,
-): Promise<void> {
-  assertContentLengthWithinLimit(request, maxBytes);
-
-  if (!request.body) {
-    return;
-  }
-
-  const reader = request.clone().body!.getReader();
-  let total = 0;
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        completed = true;
+        break;
+      }
+
       total += value.byteLength;
       if (total > maxBytes) {
         throw new Error("request body is too large");
       }
+
+      chunks.push(value);
     }
   } finally {
+    if (!completed) {
+      await reader.cancel().catch(() => {});
+    }
     reader.releaseLock();
+  }
+
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
+export async function readLimitedFormData(
+  request: Request,
+  maxBytes = DEFAULT_MAX_REQUEST_BODY_BYTES,
+): Promise<FormData> {
+  const bytes = await readLimitedBytes(request, maxBytes);
+  if (bytes.byteLength === 0) {
+    return new FormData();
+  }
+
+  const body = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+  const bufferedRequest = new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body,
+  });
+
+  try {
+    return await bufferedRequest.formData();
+  } catch {
+    return new FormData();
   }
 }
