@@ -82,6 +82,38 @@ describe("push routes", () => {
     });
   });
 
+  it("normalizes extension parameter keys for non-string JSON values", async () => {
+    const { app, sender } = createHarness({
+      registrySeed: {
+        alpha: "token-alpha",
+      },
+    });
+
+    const response = await app.request("http://example.com/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "alpha",
+        body: "hello",
+        Delete: 1,
+        Group: 123,
+        metadata: { CustomFlag: true },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(sender.messages[0].extParams).toMatchObject({
+      delete: 1,
+      group: 123,
+      customflag: true,
+    });
+    expect(sender.messages[0].extParams).not.toHaveProperty("Delete");
+    expect(sender.messages[0].extParams).not.toHaveProperty("Group");
+    expect(sender.messages[0].extParams).not.toHaveProperty("CustomFlag");
+  });
+
   it("forces a non-empty body for encrypted notifications", async () => {
     const { app, sender } = createHarness({
       registrySeed: {
