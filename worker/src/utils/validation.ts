@@ -37,7 +37,14 @@ export async function readLimitedBytes(
   request: BodySource,
   maxBytes = DEFAULT_MAX_REQUEST_BODY_BYTES,
 ): Promise<Uint8Array> {
-  assertContentLengthWithinLimit(request, maxBytes);
+  try {
+    assertContentLengthWithinLimit(request, maxBytes);
+  } catch (error) {
+    if (request.body) {
+      await request.body.cancel().catch(() => {});
+    }
+    throw error;
+  }
 
   if (!request.body) {
     return new Uint8Array();
