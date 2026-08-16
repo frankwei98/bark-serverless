@@ -4,7 +4,7 @@ import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } fr
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
-import { MAX_DEVICE_KEY_BYTES } from "@/services/kv-device-registry";
+import { MAX_DEVICE_KEY_BYTES } from "@/services/device-key";
 
 interface DeviceInfo {
   device_key?: unknown;

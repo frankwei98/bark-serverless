@@ -1,14 +1,13 @@
-import { generateDeviceKey } from "@/services/device-key";
+import {
+  DEVICE_KEY_STORAGE_PREFIX,
+  generateDeviceKey,
+} from "@/services/device-key";
 import type { DeviceRegistry } from "@/types";
 
-const DEVICE_KEY_PREFIX = "device:";
-const KV_MAX_KEY_BYTES = 512;
-export const MAX_DEVICE_KEY_BYTES =
-  KV_MAX_KEY_BYTES - new TextEncoder().encode(DEVICE_KEY_PREFIX).byteLength;
 const DEVICE_COUNT_CACHE_TTL_MS = 60 * 1000;
 
 function storageKey(key: string): string {
-  return `${DEVICE_KEY_PREFIX}${key}`;
+  return `${DEVICE_KEY_STORAGE_PREFIX}${key}`;
 }
 
 export class KVDeviceRegistry implements DeviceRegistry {
@@ -32,7 +31,10 @@ export class KVDeviceRegistry implements DeviceRegistry {
     let total = 0;
 
     do {
-      const page = await this.namespace.list({ prefix: DEVICE_KEY_PREFIX, cursor });
+      const page = await this.namespace.list({
+        prefix: DEVICE_KEY_STORAGE_PREFIX,
+        cursor,
+      });
       total += page.keys.length;
       cursor = page.list_complete ? undefined : page.cursor;
     } while (cursor);
