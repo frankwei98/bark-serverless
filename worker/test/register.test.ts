@@ -52,7 +52,7 @@ describe("register routes", () => {
   });
 
   it("registers a device through a multipart form", async () => {
-    const { app } = createHarness();
+    const { app, registry } = createHarness();
     const form = new FormData();
     form.set("device_key", "multipart-key");
     form.set("device_token", "multipart-token");
@@ -69,6 +69,9 @@ describe("register routes", () => {
         device_key: "multipart-key",
         device_token: "multipart-token",
       },
+    });
+    expect(registry.snapshot()).toEqual({
+      "multipart-key": "multipart-token",
     });
   });
 
