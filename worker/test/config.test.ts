@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_MAX_BATCH_PUSH_COUNT, parseCloseRegister, parseMaxBatchPushCount } from "@/config";
+import {
+  DEFAULT_APNS_REQUEST_TIMEOUT_MS,
+  DEFAULT_MAX_BATCH_PUSH_COUNT,
+  parseApnsRequestTimeoutMs,
+  parseCloseRegister,
+  parseMaxBatchPushCount,
+} from "@/config";
 
 describe("parseMaxBatchPushCount", () => {
   it("uses a finite default when the env var is absent", () => {
@@ -14,6 +20,21 @@ describe("parseMaxBatchPushCount", () => {
   it("falls back to the finite default for invalid values", () => {
     expect(parseMaxBatchPushCount("0")).toBe(DEFAULT_MAX_BATCH_PUSH_COUNT);
     expect(parseMaxBatchPushCount("abc")).toBe(DEFAULT_MAX_BATCH_PUSH_COUNT);
+  });
+});
+
+describe("parseApnsRequestTimeoutMs", () => {
+  it("uses a finite default when the env var is absent", () => {
+    expect(parseApnsRequestTimeoutMs()).toBe(DEFAULT_APNS_REQUEST_TIMEOUT_MS);
+  });
+
+  it("accepts positive timeout values", () => {
+    expect(parseApnsRequestTimeoutMs("1250")).toBe(1_250);
+  });
+
+  it("falls back to the default for invalid values", () => {
+    expect(parseApnsRequestTimeoutMs("0")).toBe(DEFAULT_APNS_REQUEST_TIMEOUT_MS);
+    expect(parseApnsRequestTimeoutMs("abc")).toBe(DEFAULT_APNS_REQUEST_TIMEOUT_MS);
   });
 });
 

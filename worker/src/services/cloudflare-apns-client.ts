@@ -1,10 +1,12 @@
 import type { ApnsSendError, PushMessage, PushSender } from "@/types";
+import { DEFAULT_APNS_REQUEST_TIMEOUT_MS } from "@/config";
 
 export interface CloudflareApnsConfig {
   privateKey?: string;
   keyId?: string;
   teamId?: string;
   topic?: string;
+  timeoutMs?: number;
 }
 
 const JWT_REUSE_SECONDS = 30 * 60;
@@ -275,6 +277,9 @@ export class CloudflareApnsClient implements PushSender {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(
+          this.config.timeoutMs ?? DEFAULT_APNS_REQUEST_TIMEOUT_MS,
+        ),
       });
     } catch (err) {
       const error = new Error(`APNs network error: ${err instanceof Error ? err.message : String(err)}`) as ApnsSendError;
