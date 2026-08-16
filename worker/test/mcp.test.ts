@@ -611,6 +611,21 @@ describe("mcp compatibility", () => {
     expect(body.error!.message).toBe("Invalid Request");
   });
 
+  it("rejects client responses with an invalid id type", async () => {
+    const { app } = createHarness();
+
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: {}, result: {} }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await parseMcpResponse(res);
+    expect(body.error!.code).toBe(-32600);
+    expect(body.error!.message).toBe("Invalid Request");
+  });
+
   // --- Accept header ---
 
   it("Accept header not including application/json returns 406", async () => {

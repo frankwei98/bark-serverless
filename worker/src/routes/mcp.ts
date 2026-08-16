@@ -67,6 +67,10 @@ function acceptsJson(accept: string): boolean {
 
 type JsonRpcId = number | string | null;
 
+function isJsonRpcId(value: unknown): value is JsonRpcId {
+  return typeof value === "number" || typeof value === "string" || value === null;
+}
+
 interface JsonRpcRequest {
   jsonrpc: "2.0";
   id?: JsonRpcId;
@@ -116,7 +120,7 @@ type InitializeNegotiationResult =
   | { valid: false; version: string };
 
 function normalizeJsonRpcId(id: unknown): JsonRpcId {
-  if (typeof id === "number" || typeof id === "string" || id === null) {
+  if (isJsonRpcId(id)) {
     return id;
   }
 
@@ -136,6 +140,7 @@ function isJsonRpcClientResponse(body: JsonRpcRequest): boolean {
   const hasError = Object.hasOwn(body, "error");
   if (
     !("id" in body) ||
+    !isJsonRpcId(body.id) ||
     "method" in body ||
     hasResult === hasError
   ) {
