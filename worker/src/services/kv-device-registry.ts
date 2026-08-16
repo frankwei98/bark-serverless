@@ -2,6 +2,9 @@ import { generateDeviceKey } from "@/services/device-key";
 import type { DeviceRegistry } from "@/types";
 
 const DEVICE_KEY_PREFIX = "device:";
+const KV_MAX_KEY_BYTES = 512;
+export const MAX_DEVICE_KEY_BYTES =
+  KV_MAX_KEY_BYTES - new TextEncoder().encode(DEVICE_KEY_PREFIX).byteLength;
 const DEVICE_COUNT_CACHE_TTL_MS = 60 * 1000;
 
 function storageKey(key: string): string {

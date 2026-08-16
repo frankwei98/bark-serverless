@@ -4,17 +4,24 @@ import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } fr
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { assertBodyWithinLimit, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
+import { MAX_DEVICE_KEY_BYTES } from "@/services/kv-device-registry";
 
 interface DeviceInfo {
-  device_key?: string;
-  device_token?: string;
-  key?: string;
-  devicetoken?: string;
+  device_key?: unknown;
+  device_token?: unknown;
+  key?: unknown;
+  devicetoken?: unknown;
 }
 
 export interface RegisterRouteOptions {
   config: AppConfig;
   deps: RuntimeDeps;
+}
+
+const textEncoder = new TextEncoder();
+
+function preferPrimaryField(primary: unknown, legacy: unknown): unknown {
+  return primary === undefined || primary === "" ? (legacy ?? "") : primary;
 }
 
 async function parseRegisterBody(request: Request, maxBodyBytes: number): Promise<DeviceInfo> {
@@ -68,8 +75,25 @@ async function doRegister(c: Context, options: RegisterRouteOptions, compat: boo
     return c.json(failed(now, 400, `${prefix}: ${getErrorMessage(error)}`), 400);
   }
 
-  const deviceKey = deviceInfo.device_key || deviceInfo.key || "";
-  const deviceToken = deviceInfo.device_token || deviceInfo.devicetoken || "";
+  const deviceKeyValue = preferPrimaryField(deviceInfo.device_key, deviceInfo.key);
+  if (typeof deviceKeyValue !== "string") {
+    return c.json(failed(options.deps.now(), 400, "device key is invalid"), 400);
+  }
+
+  const deviceTokenValue = preferPrimaryField(
+    deviceInfo.device_token,
+    deviceInfo.devicetoken,
+  );
+  if (typeof deviceTokenValue !== "string") {
+    return c.json(failed(options.deps.now(), 400, "device token is invalid"), 400);
+  }
+
+  const deviceKey = deviceKeyValue;
+  const deviceToken = deviceTokenValue;
+
+  if (textEncoder.encode(deviceKey).byteLength > MAX_DEVICE_KEY_BYTES) {
+    return c.json(failed(options.deps.now(), 400, "device key is invalid"), 400);
+  }
 
   if (deviceToken.length === 0) {
     return c.json(failed(options.deps.now(), 400, "device token is empty"), 400);

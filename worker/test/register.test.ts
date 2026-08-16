@@ -121,6 +121,71 @@ describe("register routes", () => {
     });
   });
 
+  it("returns 400 when the device token is not a string", async () => {
+    const { app, registry } = createHarness();
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_token: 123,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: "device token is invalid",
+    });
+    expect(registry.snapshot()).toEqual({});
+  });
+
+  it("returns 400 when the device key is not a string", async () => {
+    const { app, registry } = createHarness();
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: 123,
+        device_token: "device-token",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: "device key is invalid",
+    });
+    expect(registry.snapshot()).toEqual({});
+  });
+
+  it("returns 400 when the device key exceeds the KV byte limit", async () => {
+    const { app, registry } = createHarness();
+
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        device_key: "é".repeat(253),
+        device_token: "device-token",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: "device key is invalid",
+    });
+    expect(registry.snapshot()).toEqual({});
+  });
+
   it("accepts non-hex device tokens for Go compatibility", async () => {
     const { app } = createHarness();
 
