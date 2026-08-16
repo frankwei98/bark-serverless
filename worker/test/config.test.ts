@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_APNS_REQUEST_TIMEOUT_MS,
   DEFAULT_MAX_BATCH_PUSH_COUNT,
+  HARD_MAX_APNS_REQUEST_TIMEOUT_MS,
+  HARD_MAX_REQUEST_BODY_BYTES,
   parseApnsRequestTimeoutMs,
   parseCloseRegister,
   parseMaxBatchPushCount,
+  parseMaxRequestBodyBytes,
 } from "@/config";
+import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/utils/validation";
 
 describe("parseMaxBatchPushCount", () => {
   it("uses a finite default when the env var is absent", () => {
@@ -33,9 +37,29 @@ describe("parseApnsRequestTimeoutMs", () => {
     expect(parseApnsRequestTimeoutMs("1250")).toBe(1_250);
   });
 
+  it("accepts the hard maximum and rejects larger timeouts", () => {
+    expect(parseApnsRequestTimeoutMs(String(HARD_MAX_APNS_REQUEST_TIMEOUT_MS))).toBe(
+      HARD_MAX_APNS_REQUEST_TIMEOUT_MS,
+    );
+    expect(
+      parseApnsRequestTimeoutMs(String(HARD_MAX_APNS_REQUEST_TIMEOUT_MS + 1)),
+    ).toBe(DEFAULT_APNS_REQUEST_TIMEOUT_MS);
+  });
+
   it("falls back to the default for invalid values", () => {
     expect(parseApnsRequestTimeoutMs("0")).toBe(DEFAULT_APNS_REQUEST_TIMEOUT_MS);
     expect(parseApnsRequestTimeoutMs("abc")).toBe(DEFAULT_APNS_REQUEST_TIMEOUT_MS);
+  });
+});
+
+describe("parseMaxRequestBodyBytes", () => {
+  it("accepts the hard maximum and rejects larger bodies", () => {
+    expect(parseMaxRequestBodyBytes(String(HARD_MAX_REQUEST_BODY_BYTES))).toBe(
+      HARD_MAX_REQUEST_BODY_BYTES,
+    );
+    expect(
+      parseMaxRequestBodyBytes(String(HARD_MAX_REQUEST_BODY_BYTES + 1)),
+    ).toBe(DEFAULT_MAX_REQUEST_BODY_BYTES);
   });
 });
 
