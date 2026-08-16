@@ -116,8 +116,10 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
   };
 
   for (const [rawKey, rawValue] of Object.entries(params)) {
+    const normalizedKey = rawKey.toLowerCase();
+
     if (typeof rawValue === "string") {
-      switch (rawKey.toLowerCase()) {
+      switch (normalizedKey) {
         case "id":
           message.id = rawValue;
           message.extParams.id = rawValue;
@@ -138,7 +140,7 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
           message.sound = rawValue.endsWith(".caf") ? rawValue : `${rawValue}.caf`;
           break;
         default:
-          message.extParams[rawKey.toLowerCase()] = rawValue;
+          message.extParams[normalizedKey] = rawValue;
           break;
       }
       continue;
@@ -146,12 +148,12 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
 
     if (isRecord(rawValue)) {
       for (const [key, value] of Object.entries(rawValue)) {
-        message.extParams[key] = value;
+        message.extParams[key.toLowerCase()] = value;
       }
       continue;
     }
 
-    message.extParams[rawKey] = rawValue;
+    message.extParams[normalizedKey] = rawValue;
   }
 
   if (isEmptyAlert(message)) {
