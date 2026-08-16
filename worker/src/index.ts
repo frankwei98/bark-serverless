@@ -12,8 +12,9 @@ function buildApp(env: BarkBindings) {
     return cached;
   }
 
+  const config = createConfigFromEnv(env);
   const app = createApp({
-    config: createConfigFromEnv(env),
+    config,
     deps: {
       registry: new KVDeviceRegistry(env.DEVICE_REGISTRY),
       pushSender: new CloudflareApnsClient({
@@ -21,6 +22,7 @@ function buildApp(env: BarkBindings) {
         keyId: env.APNS_KEY_ID,
         teamId: env.APNS_TEAM_ID,
         topic: env.APNS_TOPIC,
+        timeoutMs: config.apnsRequestTimeoutMs,
       }),
       now: () => Math.floor(Date.now() / 1000),
       buildInfo: createBuildInfoFromEnv(env),

@@ -1,5 +1,8 @@
 import { createApp } from "@/app";
-import { DEFAULT_MAX_BATCH_PUSH_COUNT } from "@/config";
+import {
+  DEFAULT_APNS_REQUEST_TIMEOUT_MS,
+  DEFAULT_MAX_BATCH_PUSH_COUNT,
+} from "@/config";
 import type {
   ApnsSendError,
   AppConfig,
@@ -113,6 +116,7 @@ export function createHarness(options: TestHarnessOptions = {}): TestHarness {
     basicAuthPassword: undefined,
     maxBatchPushCount: DEFAULT_MAX_BATCH_PUSH_COUNT,
     maxRequestBodyBytes: 4 * 1024 * 1024,
+    apnsRequestTimeoutMs: DEFAULT_APNS_REQUEST_TIMEOUT_MS,
     mcpSessionSecret: undefined,
     closeRegister: false,
     ...options.config,

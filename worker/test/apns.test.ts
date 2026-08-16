@@ -386,4 +386,24 @@ describe("CloudflareApnsClient", () => {
       reason: "NetworkError",
     });
   });
+
+  it("attaches a configured timeout signal to APNs requests", async () => {
+    installCryptoStub();
+
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+      timeoutMs: 1_250,
+    });
+
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send(createMessage());
+
+    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+    expect(calls[0]![1].signal).toBeInstanceOf(AbortSignal);
+  });
 });

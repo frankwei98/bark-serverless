@@ -18,6 +18,7 @@ export interface AppConfig {
   basicAuthPassword?: string;
   maxBatchPushCount: number;
   maxRequestBodyBytes: number;
+  apnsRequestTimeoutMs: number;
   mcpSessionSecret?: string;
   closeRegister: boolean;
 }
@@ -29,6 +30,7 @@ export interface BarkBindings {
   BASIC_AUTH_PASSWORD?: string;
   MAX_BATCH_PUSH_COUNT?: string;
   MAX_REQUEST_BODY_BYTES?: string;
+  APNS_REQUEST_TIMEOUT_MS?: string;
   MCP_SESSION_SECRET?: string;
   CLOSE_REGISTER?: string | boolean;
   APP_VERSION?: string;
