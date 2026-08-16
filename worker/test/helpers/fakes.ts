@@ -35,6 +35,10 @@ export class InMemoryDeviceRegistry implements DeviceRegistry {
     return this.store.size;
   }
 
+  canStoreDeviceKey(key: string): boolean {
+    return new TextEncoder().encode(`device:${key}`).byteLength <= 512;
+  }
+
   async deviceTokenByKey(key: string): Promise<string> {
     const token = this.store.get(key);
     if (token === undefined) {
