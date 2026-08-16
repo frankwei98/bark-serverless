@@ -23,3 +23,11 @@ sUGxFs/4pw1rIlSV2IC19M8u3G5kq36upOwyFWj9Gi3Ejc9d3sC7+SHRqXrEAJow
 binding = "DEVICE_REGISTRY"
 id = "a47ee60cd75c4e9f902b99922ce9f791"
 preview_id = "a47ee60cd75c4e9f902b99922ce9f791"
+
+[[durable_objects.bindings]]
+name = "DEVICE_REGISTRY_COORDINATOR"
+class_name = "DeviceRegistryCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeviceRegistryCoordinator"]

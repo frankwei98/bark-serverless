@@ -4,6 +4,8 @@ import { CloudflareApnsClient } from "@/services/cloudflare-apns-client";
 import { KVDeviceRegistry } from "@/services/kv-device-registry";
 import type { BarkBindings } from "@/types";
 
+export { DeviceRegistryCoordinator } from "@/services/device-registry-coordinator";
+
 const appCache = new WeakMap<BarkBindings, ReturnType<typeof createApp>>();
 
 function buildApp(env: BarkBindings) {
@@ -16,7 +18,10 @@ function buildApp(env: BarkBindings) {
   const app = createApp({
     config,
     deps: {
-      registry: new KVDeviceRegistry(env.DEVICE_REGISTRY),
+      registry: new KVDeviceRegistry(
+        env.DEVICE_REGISTRY,
+        (key) => env.DEVICE_REGISTRY_COORDINATOR.getByName(key),
+      ),
       pushSender: new CloudflareApnsClient({
         privateKey: env.APNS_PRIVATE_KEY,
         keyId: env.APNS_KEY_ID,
