@@ -3,6 +3,8 @@ import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/utils/validation";
 
 export const DEFAULT_MAX_BATCH_PUSH_COUNT = 1000;
 export const DEFAULT_APNS_REQUEST_TIMEOUT_MS = 10_000;
+export const HARD_MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
+export const HARD_MAX_APNS_REQUEST_TIMEOUT_MS = 60_000;
 
 function parsePositiveInteger(
   raw: string | undefined,
@@ -14,8 +16,8 @@ function parsePositiveInteger(
   }
 
   const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.min(parsed, maximum)
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= maximum
+    ? parsed
     : fallback;
 }
 
@@ -37,11 +39,19 @@ export function parseMaxBatchPushCount(raw?: string): number {
 }
 
 export function parseMaxRequestBodyBytes(raw?: string): number {
-  return parsePositiveInteger(raw, DEFAULT_MAX_REQUEST_BODY_BYTES);
+  return parsePositiveInteger(
+    raw,
+    DEFAULT_MAX_REQUEST_BODY_BYTES,
+    HARD_MAX_REQUEST_BODY_BYTES,
+  );
 }
 
 export function parseApnsRequestTimeoutMs(raw?: string): number {
-  return parsePositiveInteger(raw, DEFAULT_APNS_REQUEST_TIMEOUT_MS);
+  return parsePositiveInteger(
+    raw,
+    DEFAULT_APNS_REQUEST_TIMEOUT_MS,
+    HARD_MAX_APNS_REQUEST_TIMEOUT_MS,
+  );
 }
 
 export function parseCloseRegister(raw?: string | boolean): boolean {
