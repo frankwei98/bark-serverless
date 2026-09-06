@@ -3,7 +3,7 @@ import type { Context, Hono } from "hono";
 import { failed, getErrorMessage, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
 import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
-import { isRecord } from "@/utils/objects";
+import { isRecord, normalizeParamKeys } from "@/utils/objects";
 import { DeviceLookupError } from "@/services/device-registry-errors";
 
 export interface PushRouteOptions {
@@ -79,7 +79,7 @@ async function parseJsonBody(request: Request, maxBodyBytes: number): Promise<Pa
   }
 
   const parsed = JSON.parse(raw) as unknown;
-  return isRecord(parsed) ? { ...parsed } : {};
+  return isRecord(parsed) ? normalizeParamKeys(parsed) : {};
 }
 
 function normalizePushError(error: unknown): ApnsSendError {

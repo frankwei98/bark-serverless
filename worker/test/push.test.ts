@@ -4,6 +4,28 @@ import { buildPushMessage } from "@/routes/push";
 import { createApnsError, createHarness } from "./helpers/fakes";
 
 describe("push routes", () => {
+  it("keeps the path recipient above differently-cased JSON fields", async () => {
+    const { app, sender } = createHarness({ registrySeed: { alpha: "token-alpha", beta: "token-beta" } });
+    const response = await app.request("/alpha/path-body", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_key: "alpha", DEVICE_KEY: "beta", body: "first", BODY: "second" }),
+    });
+    expect(response.status).toBe(200);
+    expect(sender.messages[0]).toMatchObject({ deviceKey: "alpha", body: "path-body" });
+  });
+
+  it("keeps batch recipients above differently-cased JSON fields", async () => {
+    const { app, sender } = createHarness({ registrySeed: { alpha: "token-alpha", beta: "token-beta" } });
+    const response = await app.request("/push", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_key: "alpha", DEVICE_KEY: "beta", device_keys: ["alpha", "beta"], body: "hello" }),
+    });
+    expect(response.status).toBe(200);
+    expect(sender.messages.map((message) => message.deviceKey)).toEqual(["alpha", "beta"]);
+  });
+
   it.each(["/alpha/hello", "/register/alpha"])("reports storage failures safely at %s", async (path) => {
     const { app, registry, sender } = createHarness();
     vi.spyOn(registry, "deviceTokenByKey").mockRejectedValue(new Error("private storage details"));
