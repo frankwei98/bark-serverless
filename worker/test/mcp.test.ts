@@ -66,6 +66,23 @@ async function parseMcpResponse(res: Response): Promise<McpResponse> {
 }
 
 describe("mcp compatibility", () => {
+  it.each(["/mcp", "/mcp/test-key"])("rejects case-insensitive notify duplicates at %s", async (path) => {
+    const harness = createHarness({ registrySeed: { "test-key": "test-token" } });
+    const res = await jsonRpcRequest(harness.app, path, "tools/call", {
+      name: "notify",
+      arguments: { device_key: "test-key", body: "first", BODY: "second" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.id).toBe(1);
+    expect(body.error).toEqual({
+      code: -32602,
+      message: "Invalid params: duplicate parameter key: body",
+    });
+    expect(harness.sender.messages).toHaveLength(0);
+  });
+
   it("initialize returns server info and capabilities", async () => {
     const { app } = createHarness();
 
@@ -169,7 +186,7 @@ describe("mcp compatibility", () => {
     const harness = createHarness({ registrySeed: { alpha: "token-alpha", beta: "token-beta" } });
     const res = await jsonRpcRequest(harness.app, "/mcp/alpha", "tools/call", {
       name: "notify",
-      arguments: { device_key: "alpha", DEVICE_KEY: "beta", body: "hello" },
+      arguments: { DEVICE_KEY: "beta", body: "hello" },
     });
     const body = await parseMcpResponse(res);
     expect(body.result!.isError).toBeUndefined();
