@@ -265,6 +265,10 @@ export class CloudflareApnsClient implements PushSender {
       "content-type": "application/json",
     };
 
+    if (isDelete) {
+      headers["apns-priority"] = "5";
+    }
+
     if (message.id) {
       headers["apns-collapse-id"] = message.id;
     }
