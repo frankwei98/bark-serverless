@@ -123,6 +123,28 @@ type InitializeNegotiationResult =
   | { valid: true; version: string }
   | { valid: false; version: string };
 
+const NOTIFY_STRING_FIELDS = new Set([
+  "title",
+  "subtitle",
+  "body",
+  "markdown",
+  "call",
+  "sound",
+  "icon",
+  "image",
+  "group",
+  "isarchive",
+  "url",
+  "copy",
+]);
+const NOTIFY_NUMBER_FIELDS = new Set(["volume", "badge", "ttl"]);
+const NOTIFY_LEVELS = new Set([
+  "critical",
+  "active",
+  "timeSensitive",
+  "passive",
+]);
+
 function normalizeJsonRpcId(id: unknown): JsonRpcId {
   if (isJsonRpcId(id)) {
     return id;
@@ -169,6 +191,46 @@ function isJsonRpcRequestMessage(body: JsonRpcRequest): boolean {
     !Object.hasOwn(body, "result") &&
     !Object.hasOwn(body, "error")
   );
+}
+
+function invalidParams(id: JsonRpcId, message: string): McpHandlerResult {
+  return {
+    kind: "response",
+    body: {
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32602, message: `Invalid params: ${message}` },
+    },
+  };
+}
+
+function validateNotifyArguments(
+  args: Record<string, unknown>,
+  validateDeviceKey: boolean,
+): string | null {
+  for (const [rawKey, value] of Object.entries(args)) {
+    const key = rawKey.toLowerCase();
+    if (NOTIFY_STRING_FIELDS.has(key) && typeof value !== "string") {
+      return `${rawKey} must be a string`;
+    }
+
+    if (
+      NOTIFY_NUMBER_FIELDS.has(key) &&
+      (typeof value !== "number" || !Number.isFinite(value))
+    ) {
+      return `${rawKey} must be a finite number`;
+    }
+
+    if (key === "level" && (typeof value !== "string" || !NOTIFY_LEVELS.has(value))) {
+      return "level must be one of critical, active, timeSensitive, or passive";
+    }
+
+    if (validateDeviceKey && key === "device_key" && typeof value !== "string") {
+      return "device_key must be a string";
+    }
+  }
+
+  return null;
 }
 
 function base64urlEncode(data: ArrayBuffer | Uint8Array): string {
@@ -463,9 +525,11 @@ async function handleMcpRequest(
       };
 
     case "tools/call": {
-      const params = body.params as
-        | { name?: string; arguments?: Record<string, unknown> }
-        | undefined;
+      const params = body.params;
+      if (typeof params?.name !== "string") {
+        return invalidParams(id, "name must be a string");
+      }
+
       if (params?.name !== "notify") {
         return {
           kind: "response",
@@ -480,7 +544,16 @@ async function handleMcpRequest(
         };
       }
 
-      const args = { ...(params?.arguments ?? {}) } as Record<string, unknown>;
+      const toolArguments = params.arguments;
+      if (toolArguments !== undefined && !isRecord(toolArguments)) {
+        return invalidParams(id, "arguments must be an object");
+      }
+
+      const args = { ...(toolArguments ?? {}) };
+      const argumentsError = validateNotifyArguments(args, pathDeviceKey === null);
+      if (argumentsError !== null) {
+        return invalidParams(id, argumentsError);
+      }
 
       let deviceKey: string | undefined;
       if (pathDeviceKey !== null) {
@@ -667,10 +740,39 @@ export function registerMcpRoutes(app: Hono, options: McpRouteOptions): void {
       );
     }
 
+    if (body.params !== undefined && !isRecord(body.params)) {
+      setProtocolHeader(c, responseProtocolVersion);
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: normalizeJsonRpcId(body.id),
+          error: {
+            code: -32602,
+            message: "Invalid params: params must be an object",
+          },
+        } satisfies JsonRpcErrorResponse,
+        200,
+      );
+    }
+
     let negotiatedInitializeProtocolVersion: string | undefined;
     if (body.method === "initialize") {
-      const clientVersion = (body.params as Record<string, unknown> | undefined)
-        ?.protocolVersion as string | undefined;
+      const clientVersion = body.params?.protocolVersion;
+      if (clientVersion !== undefined && typeof clientVersion !== "string") {
+        setProtocolHeader(c, responseProtocolVersion);
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: normalizeJsonRpcId(body.id),
+            error: {
+              code: -32602,
+              message: "Invalid params: protocolVersion must be a string",
+            },
+          } satisfies JsonRpcErrorResponse,
+          200,
+        );
+      }
+
       if (clientVersion !== undefined && protocolHeader !== undefined && clientVersion !== protocolHeader) {
         setProtocolHeader(c, responseProtocolVersion);
         return c.json(
