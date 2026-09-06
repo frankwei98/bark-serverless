@@ -5,6 +5,7 @@ import { pushOne } from "@/routes/push";
 import { timingSafeStringEqual } from "@/utils/timing-safe";
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { readLimitedText } from "@/utils/validation";
+import { getErrorMessage } from "@/utils/responses";
 import { isRecord, normalizeParamKeys } from "@/utils/objects";
 
 export interface McpRouteOptions {
@@ -553,7 +554,12 @@ async function handleMcpRequest(
       if (argumentsError !== null) {
         return invalidParams(id, argumentsError);
       }
-      const args = normalizeParamKeys(toolArguments ?? {});
+      let args: Record<string, unknown>;
+      try {
+        args = normalizeParamKeys(toolArguments ?? {});
+      } catch (error) {
+        return invalidParams(id, getErrorMessage(error));
+      }
 
       let deviceKey: string | undefined;
       if (pathDeviceKey !== null) {

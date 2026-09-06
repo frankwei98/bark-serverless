@@ -4,12 +4,28 @@ import { buildPushMessage } from "@/routes/push";
 import { createApnsError, createHarness } from "./helpers/fakes";
 
 describe("push routes", () => {
+  it.each(["/push", "/alpha/path-body"])("rejects case-insensitive JSON duplicates at %s", async (path) => {
+    const { app, sender } = createHarness({ registrySeed: { alpha: "token-alpha" } });
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_key: "alpha", body: "first", BODY: "second" }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: 400,
+      message: "request bind failed: duplicate parameter key: body",
+    });
+    expect(sender.messages).toHaveLength(0);
+  });
+
   it("keeps the path recipient above differently-cased JSON fields", async () => {
     const { app, sender } = createHarness({ registrySeed: { alpha: "token-alpha", beta: "token-beta" } });
     const response = await app.request("/alpha/path-body", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ device_key: "alpha", DEVICE_KEY: "beta", body: "first", BODY: "second" }),
+      body: JSON.stringify({ DEVICE_KEY: "beta", BODY: "second" }),
     });
     expect(response.status).toBe(200);
     expect(sender.messages[0]).toMatchObject({ deviceKey: "alpha", body: "path-body" });
@@ -20,7 +36,7 @@ describe("push routes", () => {
     const response = await app.request("/push", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ device_key: "alpha", DEVICE_KEY: "beta", device_keys: ["alpha", "beta"], body: "hello" }),
+      body: JSON.stringify({ DEVICE_KEY: "beta", device_keys: ["alpha", "beta"], body: "hello" }),
     });
     expect(response.status).toBe(200);
     expect(sender.messages.map((message) => message.deviceKey)).toEqual(["alpha", "beta"]);
