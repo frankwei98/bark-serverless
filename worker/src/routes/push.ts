@@ -4,6 +4,7 @@ import { failed, getErrorMessage, INTERNAL_ERROR_MESSAGE, success, withData } fr
 import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
+import { DeviceLookupError } from "@/services/device-registry-errors";
 
 export interface PushRouteOptions {
   config: AppConfig;
@@ -172,11 +173,13 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
   try {
     deviceToken = await options.deps.registry.deviceTokenByKey(message.deviceKey);
   } catch (error) {
-    const normalized = normalizePushError(error);
-
+    if (!(error instanceof DeviceLookupError)) {
+      console.error("Device token lookup failed", error);
+      return { code: 500, error: new Error(INTERNAL_ERROR_MESSAGE) };
+    }
     return {
       code: 400,
-      error: new Error(`failed to get device token: ${normalized.message}`),
+      error: new Error(`failed to get device token: ${error.message}`),
     };
   }
 

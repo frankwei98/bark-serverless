@@ -4,6 +4,7 @@ import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } fr
 import type { AppConfig, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
+import { DeviceLookupError } from "@/services/device-registry-errors";
 
 interface DeviceInfo {
   device_key?: unknown;
@@ -121,7 +122,11 @@ async function doRegisterCheck(c: Context, options: RegisterRouteOptions) {
     await options.deps.registry.deviceTokenByKey(deviceKey);
     return c.json(success(options.deps.now()), 200);
   } catch (error) {
-    return c.json(failed(options.deps.now(), 400, getErrorMessage(error)), 400);
+    if (error instanceof DeviceLookupError) {
+      return c.json(failed(options.deps.now(), 400, error.message), 400);
+    }
+    console.error("Device registration lookup failed", error);
+    return c.json(failed(options.deps.now(), 500, INTERNAL_ERROR_MESSAGE), 500);
   }
 }
 
