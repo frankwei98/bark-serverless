@@ -29,17 +29,21 @@ function extractPathParams(c: Context): PathParamResult {
   const params: ParamMap = {};
   const keys = ["device_key", "subtitle", "title", "body"] as const;
 
+  try {
+    // Validate the original encoding: Hono tolerates malformed escape sequences.
+    decodeURIComponent(new URL(c.req.url).pathname);
+  } catch (error) {
+    return {
+      ok: false,
+      message: `url path parse failed: ${getErrorMessage(error)}`,
+    };
+  }
+
   for (const key of keys) {
     const value = c.req.param(key);
     if (value) {
-      try {
-        params[key] = decodeURIComponent(value);
-      } catch (error) {
-        return {
-          ok: false,
-          message: `url path parse failed: ${getErrorMessage(error)}`,
-        };
-      }
+      // Hono has already decoded the matched parameter exactly once.
+      params[key] = value;
     }
   }
 

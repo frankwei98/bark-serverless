@@ -312,6 +312,17 @@ describe("push routes", () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["100%25", "100%"],
+    ["%252F", "%2F"],
+    ["%E4%BD%A0%E5%A5%BD%2Fworld", "你好/world"],
+  ])("decodes path content once: %s", async (encoded, expected) => {
+    const { app, sender } = createHarness({ registrySeed: { alpha: "token-alpha" } });
+    const response = await app.request(`http://example.com/alpha/${encoded}`);
+    expect(response.status).toBe(200);
+    expect(sender.messages[0].body).toBe(expected);
+  });
+
   it("returns 400 when path params contain invalid percent encoding", async () => {
     const { app } = createHarness();
 
