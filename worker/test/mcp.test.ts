@@ -387,6 +387,129 @@ describe("mcp compatibility", () => {
     expect(harness.sender.messages).toHaveLength(0);
   });
 
+  it.each([123, null, []])(
+    "rejects non-object tools/call params (%j)",
+    async (params) => {
+      const harness = createHarness({
+        registrySeed: { "test-key": "test-token" },
+      });
+      const res = await harness.app.request("/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await parseMcpResponse(res);
+      expect(body.id).toBe(1);
+      expect(body.error).toEqual({
+        code: -32602,
+        message: "Invalid params: params must be an object",
+      });
+      expect(harness.sender.messages).toHaveLength(0);
+    },
+  );
+
+  it.each([123, null, [], "body"])(
+    "rejects non-object notify arguments (%j)",
+    async (argumentsValue) => {
+      const harness = createHarness({
+        registrySeed: { "test-key": "test-token" },
+      });
+      const res = await jsonRpcRequest(harness.app, "/mcp", "tools/call", {
+        name: "notify",
+        arguments: argumentsValue,
+      });
+
+      const body = await parseMcpResponse(res);
+      expect(body.error!.code).toBe(-32602);
+      expect(body.error!.message).toContain("arguments must be an object");
+      expect(harness.sender.messages).toHaveLength(0);
+    },
+  );
+
+  it("rejects a non-string tool name", async () => {
+    const harness = createHarness();
+    const res = await jsonRpcRequest(harness.app, "/mcp", "tools/call", {
+      name: 123,
+      arguments: {},
+    });
+
+    const body = await parseMcpResponse(res);
+    expect(body.error).toEqual({
+      code: -32602,
+      message: "Invalid params: name must be a string",
+    });
+    expect(harness.sender.messages).toHaveLength(0);
+  });
+
+  it.each([
+    ["body", 123, "body must be a string"],
+    ["Body", 123, "Body must be a string"],
+    ["volume", "5", "volume must be a finite number"],
+    ["badge", null, "badge must be a finite number"],
+    ["level", "urgent", "level must be one of"],
+    ["Level", "urgent", "level must be one of"],
+  ])(
+    "rejects invalid notify %s values",
+    async (field, value, expectedMessage) => {
+      const harness = createHarness({
+        registrySeed: { "test-key": "test-token" },
+      });
+      const res = await jsonRpcRequest(harness.app, "/mcp", "tools/call", {
+        name: "notify",
+        arguments: { device_key: "test-key", [field]: value },
+      });
+
+      expect(res.status).toBe(200);
+      const body = await parseMcpResponse(res);
+      expect(body.id).toBe(1);
+      expect(body.error!.code).toBe(-32602);
+      expect(body.error!.message).toContain(expectedMessage);
+      expect(harness.sender.messages).toHaveLength(0);
+    },
+  );
+
+  it("preserves unknown Bark extension arguments", async () => {
+    const harness = createHarness({
+      registrySeed: { "test-key": "test-token" },
+    });
+
+    const res = await jsonRpcRequest(harness.app, "/mcp", "tools/call", {
+      name: "notify",
+      arguments: {
+        device_key: "test-key",
+        body: "hello",
+        custom_extension: 123,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.result!.isError).toBeUndefined();
+    expect(harness.sender.messages).toHaveLength(1);
+    expect(harness.sender.messages[0].extParams.custom_extension).toBe(123);
+  });
+
+  it("rejects an invalid body on a path-scoped notify without sending a push", async () => {
+    const harness = createHarness({
+      registrySeed: { "path-key": "path-token" },
+    });
+
+    const res = await jsonRpcRequest(harness.app, "/mcp/path-key", "tools/call", {
+      name: "notify",
+      arguments: { body: 123 },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.error).toEqual({
+      code: -32602,
+      message: "Invalid params: body must be a string",
+    });
+    expect(harness.sender.messages).toHaveLength(0);
+  });
+
   // --- HTTP method dispatch ---
 
   it("GET /mcp returns 405", async () => {
@@ -541,6 +664,24 @@ describe("mcp compatibility", () => {
     const body = await parseMcpResponse(res);
     expect(body.error!.code).toBe(-32602);
     expect(body.error!.message).toContain("1.0.0");
+  });
+
+  it("initialize rejects a non-string protocolVersion without coercing it", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "initialize", {
+      protocolVersion: { toString: null },
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await parseMcpResponse(res);
+    expect(body.id).toBe(1);
+    expect(body.error).toEqual({
+      code: -32602,
+      message: "Invalid params: protocolVersion must be a string",
+    });
   });
 
   // --- MCP-Protocol-Version header ---
