@@ -7,10 +7,18 @@ interface CoordinatorNamespace {
   delete(key: string): Promise<void>;
 }
 
-interface CoordinatorStorage {
+interface CoordinatorTransaction {
   get<T>(key: string): Promise<T | undefined>;
   put(key: string, value: unknown): Promise<void>;
   delete(key: string): Promise<boolean>;
+  setAlarm(scheduledTime: number | Date): Promise<void>;
+  deleteAlarm(): Promise<void>;
+}
+
+interface CoordinatorStorage extends CoordinatorTransaction {
+  transaction<T>(
+    closure: (transaction: CoordinatorTransaction) => Promise<T>,
+  ): Promise<T>;
 }
 
 interface CoordinatorEnv {
@@ -20,12 +28,19 @@ interface CoordinatorEnv {
 interface RegistrationState {
   deviceKey: string;
   token: string | null;
+  generation?: number;
   lastMirrorAtMs?: number;
+}
+
+interface PendingMirror {
+  generation: number;
+  token: string | null;
+  dueAtMs: number;
+  failures: number;
 }
 
 interface CoordinatorClock {
   now(): number;
-  sleep(delayMs: number): Promise<void>;
 }
 
 export interface DeviceRegistryCoordinatorStub {
@@ -35,13 +50,12 @@ export interface DeviceRegistryCoordinatorStub {
 }
 
 const REGISTRATION_STATE_KEY = "registration";
+const PENDING_MIRROR_KEY = "pendingMirror";
 const KV_WRITE_INTERVAL_MS = 1_000;
+const MAX_MIRROR_BACKOFF_MS = 60_000;
 
 const systemClock: CoordinatorClock = {
   now: Date.now,
-  sleep(delayMs) {
-    return new Promise((resolve) => setTimeout(resolve, delayMs));
-  },
 };
 
 export class DeviceRegistryCoordinatorCore
@@ -90,39 +104,153 @@ export class DeviceRegistryCoordinatorCore
     }
   }
 
-  private async persistState(state: RegistrationState): Promise<void> {
-    await this.storage.put(REGISTRATION_STATE_KEY, state);
-    this.state = state;
-    this.stateLoaded = true;
-  }
-
-  private async restoreState(
-    state: RegistrationState | undefined,
-  ): Promise<void> {
-    if (state === undefined) {
-      await this.storage.delete(REGISTRATION_STATE_KEY);
-    } else {
-      await this.storage.put(REGISTRATION_STATE_KEY, state);
-    }
-    this.state = state;
-    this.stateLoaded = true;
-  }
-
   private async legacyToken(deviceKey: string): Promise<string | null> {
     return this.namespace.get(deviceStorageKey(deviceKey));
   }
 
-  private async waitForMirrorWindow(
+  private async nextMirrorTime(
     previous: RegistrationState | undefined,
   ): Promise<number> {
-    const lastMirrorAtMs = previous?.lastMirrorAtMs;
-    if (lastMirrorAtMs !== undefined) {
-      const delayMs = lastMirrorAtMs + KV_WRITE_INTERVAL_MS - this.clock.now();
-      if (delayMs > 0) {
-        await this.clock.sleep(delayMs);
-      }
+    const pending = await this.storage.get<PendingMirror>(PENDING_MIRROR_KEY);
+    return Math.max(
+      this.clock.now(),
+      (previous?.lastMirrorAtMs ?? -KV_WRITE_INTERVAL_MS) +
+        KV_WRITE_INTERVAL_MS,
+      pending?.dueAtMs ?? 0,
+    );
+  }
+
+  private async persistAuthoritativeState(
+    state: RegistrationState,
+  ): Promise<void> {
+    await this.storage.transaction(async (transaction) => {
+      await transaction.put(REGISTRATION_STATE_KEY, state);
+    });
+    this.state = state;
+    this.stateLoaded = true;
+  }
+
+  private async scheduleMirror(
+    state: RegistrationState,
+    pending: PendingMirror,
+  ): Promise<void> {
+    await this.storage.transaction(async (transaction) => {
+      await transaction.put(REGISTRATION_STATE_KEY, state);
+      await transaction.put(PENDING_MIRROR_KEY, pending);
+      await transaction.setAlarm(pending.dueAtMs);
+    });
+    this.state = state;
+    this.stateLoaded = true;
+  }
+
+  private mirrorBackoff(failures: number): number {
+    return Math.min(
+      KV_WRITE_INTERVAL_MS * 2 ** Math.min(failures, 16),
+      MAX_MIRROR_BACKOFF_MS,
+    );
+  }
+
+  private async mirrorPendingIfDue(): Promise<void> {
+    const pending = await this.storage.get<PendingMirror>(PENDING_MIRROR_KEY);
+    if (pending === undefined) {
+      return;
     }
-    return this.clock.now();
+    if (pending.dueAtMs > this.clock.now()) {
+      await this.storage.setAlarm(pending.dueAtMs);
+      return;
+    }
+    const registration = await this.readPersistedState();
+    if (registration === undefined) {
+      throw new Error("pending device registry mirror has no registration");
+    }
+
+    const attemptStartedAtMs = this.clock.now();
+    const crashRetryAtMs = attemptStartedAtMs + MAX_MIRROR_BACKOFF_MS;
+    const reservedState = await this.storage.transaction(async (transaction) => {
+      const current = await transaction.get<PendingMirror>(PENDING_MIRROR_KEY);
+      if (current?.generation !== pending.generation) {
+        return undefined;
+      }
+      const currentRegistration = await transaction.get<RegistrationState>(
+        REGISTRATION_STATE_KEY,
+      );
+      if (currentRegistration?.generation !== pending.generation) {
+        return undefined;
+      }
+      const nextRegistration = {
+        ...currentRegistration,
+        lastMirrorAtMs: attemptStartedAtMs,
+      };
+      await transaction.put(REGISTRATION_STATE_KEY, nextRegistration);
+      await transaction.put(PENDING_MIRROR_KEY, {
+        ...current,
+        dueAtMs: crashRetryAtMs,
+      });
+      await transaction.setAlarm(crashRetryAtMs);
+      return nextRegistration;
+    });
+    if (reservedState === undefined) {
+      return;
+    }
+    this.state = reservedState;
+
+    let succeeded = false;
+    try {
+      if (pending.token === null) {
+        await this.namespace.delete(deviceStorageKey(registration.deviceKey));
+      } else {
+        await this.namespace.put(
+          deviceStorageKey(registration.deviceKey),
+          pending.token,
+        );
+      }
+      succeeded = true;
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          message: "device registry KV mirror failed",
+          operation: pending.token === null ? "delete" : "put",
+          generation: pending.generation,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+
+    const completedAtMs = this.clock.now();
+    const completedState = await this.storage.transaction(async (transaction) => {
+      const current = await transaction.get<PendingMirror>(PENDING_MIRROR_KEY);
+      if (current?.generation !== pending.generation) {
+        return undefined;
+      }
+      const currentRegistration = await transaction.get<RegistrationState>(
+        REGISTRATION_STATE_KEY,
+      );
+      let nextRegistration: RegistrationState | undefined;
+      if (currentRegistration?.generation === pending.generation) {
+        nextRegistration = {
+          ...currentRegistration,
+          lastMirrorAtMs: completedAtMs,
+        };
+        await transaction.put(REGISTRATION_STATE_KEY, nextRegistration);
+      }
+      if (succeeded) {
+        await transaction.delete(PENDING_MIRROR_KEY);
+        await transaction.deleteAlarm();
+      } else {
+        const failures = current.failures + 1;
+        const retryAtMs = completedAtMs + this.mirrorBackoff(current.failures);
+        await transaction.put(PENDING_MIRROR_KEY, {
+          ...current,
+          dueAtMs: retryAtMs,
+          failures,
+        });
+        await transaction.setAlarm(retryAtMs);
+      }
+      return nextRegistration;
+    });
+    if (completedState !== undefined) {
+      this.state = completedState;
+    }
   }
 
   async deviceTokenByKey(deviceKey: string): Promise<string | null> {
@@ -150,24 +278,31 @@ export class DeviceRegistryCoordinatorCore
           ? await this.legacyToken(deviceKey)
           : previous.token;
       if (currentToken === normalizedToken) {
+        if (previous === undefined) {
+          await this.persistAuthoritativeState({
+            deviceKey,
+            token: normalizedToken,
+            generation: 0,
+          });
+        }
         return;
       }
 
-      const lastMirrorAtMs = await this.waitForMirrorWindow(previous);
-      const next = { deviceKey, token: normalizedToken, lastMirrorAtMs };
-      const rollback = { deviceKey, token: currentToken, lastMirrorAtMs };
-      await this.persistState(next);
-
-      try {
-        if (token.length === 0) {
-          await this.namespace.delete(deviceStorageKey(deviceKey));
-        } else {
-          await this.namespace.put(deviceStorageKey(deviceKey), token);
-        }
-      } catch (error) {
-        await this.restoreState(rollback);
-        throw error;
-      }
+      const generation = (previous?.generation ?? 0) + 1;
+      const dueAtMs = await this.nextMirrorTime(previous);
+      const next = {
+        deviceKey,
+        token: normalizedToken,
+        generation,
+        lastMirrorAtMs: previous?.lastMirrorAtMs,
+      };
+      await this.scheduleMirror(next, {
+        generation,
+        token: normalizedToken,
+        dueAtMs,
+        failures: 0,
+      });
+      await this.mirrorPendingIfDue();
     });
   }
 
@@ -189,20 +324,37 @@ export class DeviceRegistryCoordinatorCore
         return false;
       }
       if (currentToken === null) {
+        if (previous === undefined) {
+          await this.persistAuthoritativeState({
+            deviceKey,
+            token: null,
+            generation: 0,
+          });
+        }
         return true;
       }
 
-      const lastMirrorAtMs = await this.waitForMirrorWindow(previous);
-      const rollback = { deviceKey, token: currentToken, lastMirrorAtMs };
-      await this.persistState({ deviceKey, token: null, lastMirrorAtMs });
-      try {
-        await this.namespace.delete(deviceStorageKey(deviceKey));
-      } catch (error) {
-        await this.restoreState(rollback);
-        throw error;
-      }
+      const generation = (previous?.generation ?? 0) + 1;
+      const dueAtMs = await this.nextMirrorTime(previous);
+      const next = {
+        deviceKey,
+        token: null,
+        generation,
+        lastMirrorAtMs: previous?.lastMirrorAtMs,
+      };
+      await this.scheduleMirror(next, {
+        generation,
+        token: null,
+        dueAtMs,
+        failures: 0,
+      });
+      await this.mirrorPendingIfDue();
       return true;
     });
+  }
+
+  alarm(): Promise<void> {
+    return this.runExclusive(() => this.mirrorPendingIfDue());
   }
 }
 
@@ -230,5 +382,9 @@ export class DeviceRegistryCoordinator extends DurableObject<CoordinatorEnv> {
     expectedToken?: string,
   ): Promise<boolean> {
     return this.coordinator.deleteDeviceByKey(deviceKey, expectedToken);
+  }
+
+  alarm(): Promise<void> {
+    return this.coordinator.alarm();
   }
 }

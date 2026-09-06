@@ -1,158 +1,243 @@
 import { describe, expect, it, vi } from "vitest";
-
 import { DeviceRegistryCoordinatorCore } from "@/services/device-registry-coordinator";
 
 function createStorage() {
   const values = new Map<string, unknown>();
-  const storage = {
-    async get<T>(key: string): Promise<T | undefined> {
-      return values.get(key) as T | undefined;
-    },
-    put: vi.fn(async (key: string, value: unknown): Promise<void> => {
-      values.set(key, value);
-    }),
-    delete: vi.fn(async (key: string): Promise<boolean> => {
-      return values.delete(key);
-    }),
+  let alarm: number | null = null;
+  let rejectTransactionAlarm = false;
+  const transactionStarted = vi.fn();
+  const direct = {
+    async get<T>(key: string) { return values.get(key) as T | undefined; },
+    async put(key: string, value: unknown) { values.set(key, value); },
+    async delete(key: string) { return values.delete(key); },
+    async setAlarm(time: number | Date) { alarm = time instanceof Date ? time.getTime() : time; },
+    async deleteAlarm() { alarm = null; },
   };
-  return { storage, values };
+  const storage = {
+    ...direct,
+    async transaction<T>(closure: (transaction: typeof direct) => Promise<T>): Promise<T> {
+      transactionStarted();
+      const staged = new Map(values);
+      let stagedAlarm = alarm;
+      const transaction = {
+        async get<U>(key: string) { return staged.get(key) as U | undefined; },
+        async put(key: string, value: unknown) { staged.set(key, value); },
+        async delete(key: string) { return staged.delete(key); },
+        async setAlarm(time: number | Date) {
+          if (rejectTransactionAlarm) {
+            rejectTransactionAlarm = false;
+            throw new Error("alarm storage unavailable");
+          }
+          stagedAlarm = time instanceof Date ? time.getTime() : time;
+        },
+        async deleteAlarm() { stagedAlarm = null; },
+      };
+      const result = await closure(transaction);
+      values.clear();
+      for (const entry of staged) values.set(...entry);
+      alarm = stagedAlarm;
+      return result;
+    },
+  };
+  return {
+    storage,
+    values,
+    getAlarm: () => alarm,
+    transactionStarted,
+    rejectNextTransactionAlarm: () => { rejectTransactionAlarm = true; },
+  };
 }
 
 function createNamespace(seed: Record<string, string> = {}) {
   const values = new Map(Object.entries(seed));
   const namespace = {
-    async get(key: string): Promise<string | null> {
-      return values.get(key) ?? null;
-    },
-    put: vi.fn(async (key: string, value: string): Promise<void> => {
-      values.set(key, value);
-    }),
-    delete: vi.fn(async (key: string): Promise<void> => {
-      values.delete(key);
-    }),
+    async get(key: string) { return values.get(key) ?? null; },
+    put: vi.fn(async (key: string, value: string) => { values.set(key, value); }),
+    delete: vi.fn(async (key: string) => { values.delete(key); }),
   };
   return { namespace, values };
 }
 
-function createCoordinator(deviceKey: string, token: string) {
-  const { storage } = createStorage();
-  const { namespace, values } = createNamespace({
-    [`device:${deviceKey}`]: token,
-  });
-  const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
-  return { coordinator, values };
-}
-
 describe("DeviceRegistryCoordinator", () => {
-  it("preserves a replacement token when registration reaches the coordinator first", async () => {
-    const { coordinator, values } = createCoordinator("alpha", "old-token");
-
-    await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe(
-      "old-token",
-    );
-    const save = coordinator.saveDeviceTokenByKey("alpha", "new-token");
-    const cleanup = coordinator.deleteDeviceByKey("alpha", "old-token");
-
-    await expect(Promise.all([save, cleanup])).resolves.toEqual([
-      undefined,
-      false,
-    ]);
-    await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe(
-      "new-token",
-    );
-    expect(values.get("device:alpha")).toBe("new-token");
-  });
-
-  it("allows a replacement token after cleanup reaches the coordinator first", async () => {
-    const { coordinator, values } = createCoordinator("alpha", "old-token");
-
-    const cleanup = coordinator.deleteDeviceByKey("alpha", "old-token");
-    const save = coordinator.saveDeviceTokenByKey("alpha", "new-token");
-
-    await expect(Promise.all([cleanup, save])).resolves.toEqual([
-      true,
-      undefined,
-    ]);
-    await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe(
-      "new-token",
-    );
-    expect(values.get("device:alpha")).toBe("new-token");
-  });
-
-  it("does not rewrite durable or KV state for an unchanged token", async () => {
+  it("preserves a replacement token when registration wins the race", async () => {
     const { storage } = createStorage();
+    const { namespace, values } = createNamespace({ "device:alpha": "old-token" });
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
+    const save = coordinator.saveDeviceTokenByKey("alpha", "new-token");
+    const cleanup = coordinator.deleteDeviceByKey("alpha", "old-token");
+    await expect(Promise.all([save, cleanup])).resolves.toEqual([undefined, false]);
+    await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe("new-token");
+    expect(values.get("device:alpha")).toBe("new-token");
+  });
+
+  it("publishes the replacement after cleanup wins the race", async () => {
+    const { storage } = createStorage();
+    const { namespace, values } = createNamespace({ "device:alpha": "old-token" });
+    let now = 4_000;
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, {
+      now: () => now,
+    });
+
+    await expect(coordinator.deleteDeviceByKey("alpha", "old-token")).resolves.toBe(true);
+    await coordinator.saveDeviceTokenByKey("alpha", "new-token");
+
+    await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe("new-token");
+    expect(values.has("device:alpha")).toBe(false);
+    now = 5_000;
+    await coordinator.alarm();
+    expect(values.get("device:alpha")).toBe("new-token");
+  });
+
+  it("migrates an unchanged legacy token without rewriting KV", async () => {
+    const { storage, values } = createStorage();
+    const { namespace } = createNamespace({ "device:alpha": "same-token" });
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
+    await coordinator.saveDeviceTokenByKey("alpha", "same-token");
+    expect(values.get("registration")).toEqual({ deviceKey: "alpha", token: "same-token", generation: 0 });
+    expect(namespace.put).not.toHaveBeenCalled();
+  });
+
+  it("does not rewrite authoritative or KV state for the same token", async () => {
+    const { storage, values, transactionStarted } = createStorage();
+    values.set("registration", {
+      deviceKey: "alpha",
+      token: "same-token",
+      generation: 7,
+    });
     const { namespace } = createNamespace({ "device:alpha": "same-token" });
     const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
 
     await coordinator.saveDeviceTokenByKey("alpha", "same-token");
     await coordinator.saveDeviceTokenByKey("alpha", "same-token");
 
-    expect(storage.put).not.toHaveBeenCalled();
+    expect(transactionStarted).not.toHaveBeenCalled();
     expect(namespace.put).not.toHaveBeenCalled();
     expect(namespace.delete).not.toHaveBeenCalled();
   });
 
-  it("does not rewrite durable or KV state when an absent token is deleted", async () => {
-    const { storage } = createStorage();
-    const { namespace } = createNamespace();
-    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
-
-    await expect(coordinator.deleteDeviceByKey("alpha")).resolves.toBe(true);
-
-    expect(storage.put).not.toHaveBeenCalled();
-    expect(namespace.delete).not.toHaveBeenCalled();
-  });
-
-  it("spaces changed KV mirrors at least one second apart", async () => {
-    const { storage } = createStorage();
-    const { namespace } = createNamespace();
-    let nowMs = 5_000;
-    const sleep = vi.fn(async (delayMs: number) => {
-      nowMs += delayMs;
+  it("does not acknowledge registration when atomic alarm scheduling fails", async () => {
+    const { storage, values, rejectNextTransactionAlarm } = createStorage();
+    values.set("registration", {
+      deviceKey: "alpha",
+      token: "old-token",
+      generation: 2,
     });
-    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, {
-      now: () => nowMs,
-      sleep,
-    });
-
-    await coordinator.saveDeviceTokenByKey("alpha", "first-token");
-    nowMs += 100;
-    await coordinator.saveDeviceTokenByKey("alpha", "second-token");
-
-    expect(sleep).toHaveBeenCalledOnce();
-    expect(sleep).toHaveBeenCalledWith(900);
-    expect(namespace.put).toHaveBeenNthCalledWith(
-      1,
-      "device:alpha",
-      "first-token",
-    );
-    expect(namespace.put).toHaveBeenNthCalledWith(
-      2,
-      "device:alpha",
-      "second-token",
-    );
-  });
-
-  it("keeps a failed mirror reservation when retrying", async () => {
-    const { storage } = createStorage();
     const { namespace } = createNamespace({ "device:alpha": "old-token" });
-    let nowMs = 8_000;
-    const sleep = vi.fn(async (delayMs: number) => {
-      nowMs += delayMs;
-    });
-    namespace.put.mockRejectedValueOnce(new Error("ambiguous KV failure"));
-    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, {
-      now: () => nowMs,
-      sleep,
-    });
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
+    await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe("old-token");
+    rejectNextTransactionAlarm();
 
     await expect(
       coordinator.saveDeviceTokenByKey("alpha", "new-token"),
-    ).rejects.toThrow("ambiguous KV failure");
-    nowMs += 100;
-    await coordinator.saveDeviceTokenByKey("alpha", "new-token");
+    ).rejects.toThrow("alarm storage unavailable");
 
-    expect(sleep).toHaveBeenCalledOnce();
-    expect(sleep).toHaveBeenCalledWith(900);
+    expect(values.get("registration")).toEqual({
+      deviceKey: "alpha",
+      token: "old-token",
+      generation: 2,
+    });
+    expect(values.has("pendingMirror")).toBe(false);
+    await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe("old-token");
+    expect(namespace.put).not.toHaveBeenCalled();
+  });
+
+  it("atomically stores a changed registration, pending mirror, and alarm", async () => {
+    const { storage, values, getAlarm } = createStorage();
+    values.set("registration", { deviceKey: "alpha", token: "old", generation: 3, lastMirrorAtMs: 5_000 });
+    const { namespace } = createNamespace({ "device:alpha": "old" });
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => 5_100 });
+    await coordinator.saveDeviceTokenByKey("alpha", "new");
+    expect(values.get("registration")).toEqual({ deviceKey: "alpha", token: "new", generation: 4, lastMirrorAtMs: 5_000 });
+    expect(values.get("pendingMirror")).toEqual({ generation: 4, token: "new", dueAtMs: 6_000, failures: 0 });
+    expect(getAlarm()).toBe(6_000);
+    expect(namespace.put).not.toHaveBeenCalled();
+  });
+
+  it("recovers a failed mirror through an alarm after eviction", async () => {
+    const { storage, values, getAlarm } = createStorage();
+    const { namespace, values: mirrored } = createNamespace();
+    let now = 8_000;
+    namespace.put.mockRejectedValueOnce(new Error("KV unavailable"));
+    const first = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
+    await expect(first.saveDeviceTokenByKey("alpha", "new")).resolves.toBeUndefined();
+    expect(values.get("pendingMirror")).toEqual({ generation: 1, token: "new", dueAtMs: 9_000, failures: 1 });
+    expect(getAlarm()).toBe(9_000);
+    now = 9_000;
+    await new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now }).alarm();
+    expect(mirrored.get("device:alpha")).toBe("new");
+    expect(values.has("pendingMirror")).toBe(false);
+    expect(getAlarm()).toBeNull();
+  });
+
+  it("paces the next mirror from the prior attempt completion", async () => {
+    const { storage, values, getAlarm } = createStorage();
+    const { namespace } = createNamespace();
+    let now = 20_000;
+    namespace.put.mockImplementation(async () => {
+      now = 20_500;
+    });
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, {
+      now: () => now,
+    });
+
+    await coordinator.saveDeviceTokenByKey("alpha", "first");
+    now = 20_600;
+    await coordinator.saveDeviceTokenByKey("alpha", "second");
+
+    expect(values.get("pendingMirror")).toEqual({
+      generation: 2,
+      token: "second",
+      dueAtMs: 21_500,
+      failures: 0,
+    });
+    expect(getAlarm()).toBe(21_500);
+    expect(namespace.put).toHaveBeenCalledOnce();
+  });
+
+  it("inherits an interrupted mirror reservation after reload", async () => {
+    const { storage, values, getAlarm } = createStorage();
+    values.set("registration", {
+      deviceKey: "alpha",
+      token: "interrupted-token",
+      generation: 4,
+      lastMirrorAtMs: 40_000,
+    });
+    values.set("pendingMirror", {
+      generation: 4,
+      token: "interrupted-token",
+      dueAtMs: 100_000,
+      failures: 0,
+    });
+    const { namespace } = createNamespace();
+    const reloaded = new DeviceRegistryCoordinatorCore(storage, namespace, {
+      now: () => 40_100,
+    });
+
+    await reloaded.saveDeviceTokenByKey("alpha", "latest-token");
+
+    expect(values.get("pendingMirror")).toEqual({
+      generation: 5,
+      token: "latest-token",
+      dueAtMs: 100_000,
+      failures: 0,
+    });
+    expect(getAlarm()).toBe(100_000);
+    expect(namespace.put).not.toHaveBeenCalled();
+  });
+
+  it("mirrors only the latest state when a retry is pending", async () => {
+    const { storage, values } = createStorage();
+    const { namespace, values: mirrored } = createNamespace();
+    let now = 10_000;
+    namespace.put.mockRejectedValueOnce(new Error("KV unavailable"));
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
+    await coordinator.saveDeviceTokenByKey("alpha", "superseded");
+    now = 10_100;
+    await coordinator.saveDeviceTokenByKey("alpha", "latest");
+    now = 11_000;
+    await coordinator.alarm();
+    expect(mirrored.get("device:alpha")).toBe("latest");
+    expect(namespace.put).toHaveBeenCalledTimes(2);
+    expect(values.has("pendingMirror")).toBe(false);
   });
 });
