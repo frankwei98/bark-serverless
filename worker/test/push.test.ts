@@ -4,6 +4,32 @@ import { buildPushMessage } from "@/routes/push";
 import { createApnsError, createHarness } from "./helpers/fakes";
 
 describe("push routes", () => {
+  it("preserves batch results and later chunks when token cleanup fails", async () => {
+    const keys = Array.from({ length: 51 }, (_, index) => `device-${index}`);
+    const { app, sender, registry } = createHarness({
+      registrySeed: Object.fromEntries(keys.map((key) => [key, `token-${key}`])),
+    });
+    sender.failForDeviceToken("token-device-0", createApnsError("BadDeviceToken", 400));
+    vi.spyOn(registry, "deleteDeviceByKey").mockRejectedValue(new Error("storage unavailable"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await app.request("/push", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ device_keys: keys, body: "hello" }),
+      });
+      expect(response.status).toBe(200);
+      const result = await response.json() as { data: Array<{ device_key: string; code: number; message?: string }> };
+      expect(result.data.map((row) => row.device_key)).toEqual(keys);
+      expect(result.data[0]).toMatchObject({ code: 500, message: "push failed: BadDeviceToken" });
+      expect(result.data.slice(1).every((row) => row.code === 200)).toBe(true);
+      expect(sender.messages).toHaveLength(51);
+      expect(log).toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it("builds extension parameters in a prototype-free dictionary", () => {
     const params = JSON.parse(
       '{"device_key":"alpha","metadata":{"__proto__":{"delete":"1"}}}',
