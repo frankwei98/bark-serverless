@@ -165,6 +165,18 @@ describe("mcp compatibility", () => {
     expect(harness.sender.messages[0].deviceKey).toBe("path-key");
   });
 
+  it("keeps the path recipient above differently-cased tool arguments", async () => {
+    const harness = createHarness({ registrySeed: { alpha: "token-alpha", beta: "token-beta" } });
+    const res = await jsonRpcRequest(harness.app, "/mcp/alpha", "tools/call", {
+      name: "notify",
+      arguments: { device_key: "alpha", DEVICE_KEY: "beta", body: "hello" },
+    });
+    const body = await parseMcpResponse(res);
+    expect(body.result!.isError).toBeUndefined();
+    expect(harness.sender.messages).toHaveLength(1);
+    expect(harness.sender.messages[0].deviceKey).toBe("alpha");
+  });
+
   it("missing device_key on /mcp returns error", async () => {
     const { app } = createHarness();
 
