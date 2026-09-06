@@ -20,6 +20,12 @@ interface CoordinatorEnv {
 interface RegistrationState {
   deviceKey: string;
   token: string | null;
+  lastMirrorAtMs?: number;
+}
+
+interface CoordinatorClock {
+  now(): number;
+  sleep(delayMs: number): Promise<void>;
 }
 
 export interface DeviceRegistryCoordinatorStub {
@@ -29,6 +35,14 @@ export interface DeviceRegistryCoordinatorStub {
 }
 
 const REGISTRATION_STATE_KEY = "registration";
+const KV_WRITE_INTERVAL_MS = 1_000;
+
+const systemClock: CoordinatorClock = {
+  now: Date.now,
+  sleep(delayMs) {
+    return new Promise((resolve) => setTimeout(resolve, delayMs));
+  },
+};
 
 export class DeviceRegistryCoordinatorCore
   implements DeviceRegistryCoordinatorStub
@@ -40,6 +54,7 @@ export class DeviceRegistryCoordinatorCore
   constructor(
     private readonly storage: CoordinatorStorage,
     private readonly namespace: CoordinatorNamespace,
+    private readonly clock: CoordinatorClock = systemClock,
   ) {}
 
   private runExclusive<T>(operation: () => Promise<T>): Promise<T> {
@@ -97,6 +112,19 @@ export class DeviceRegistryCoordinatorCore
     return this.namespace.get(deviceStorageKey(deviceKey));
   }
 
+  private async waitForMirrorWindow(
+    previous: RegistrationState | undefined,
+  ): Promise<number> {
+    const lastMirrorAtMs = previous?.lastMirrorAtMs;
+    if (lastMirrorAtMs !== undefined) {
+      const delayMs = lastMirrorAtMs + KV_WRITE_INTERVAL_MS - this.clock.now();
+      if (delayMs > 0) {
+        await this.clock.sleep(delayMs);
+      }
+    }
+    return this.clock.now();
+  }
+
   async deviceTokenByKey(deviceKey: string): Promise<string | null> {
     return this.runExclusive(async () => {
       const state = await this.readPersistedState();
@@ -116,7 +144,18 @@ export class DeviceRegistryCoordinatorCore
         this.assertDeviceKey(previous, deviceKey);
       }
 
-      const next = { deviceKey, token: token.length === 0 ? null : token };
+      const normalizedToken = token.length === 0 ? null : token;
+      const currentToken =
+        previous === undefined
+          ? await this.legacyToken(deviceKey)
+          : previous.token;
+      if (currentToken === normalizedToken) {
+        return;
+      }
+
+      const lastMirrorAtMs = await this.waitForMirrorWindow(previous);
+      const next = { deviceKey, token: normalizedToken, lastMirrorAtMs };
+      const rollback = { deviceKey, token: currentToken, lastMirrorAtMs };
       await this.persistState(next);
 
       try {
@@ -126,7 +165,7 @@ export class DeviceRegistryCoordinatorCore
           await this.namespace.put(deviceStorageKey(deviceKey), token);
         }
       } catch (error) {
-        await this.restoreState(previous);
+        await this.restoreState(rollback);
         throw error;
       }
     });
@@ -149,12 +188,17 @@ export class DeviceRegistryCoordinatorCore
       if (expectedToken !== undefined && currentToken !== expectedToken) {
         return false;
       }
+      if (currentToken === null) {
+        return true;
+      }
 
-      await this.persistState({ deviceKey, token: null });
+      const lastMirrorAtMs = await this.waitForMirrorWindow(previous);
+      const rollback = { deviceKey, token: currentToken, lastMirrorAtMs };
+      await this.persistState({ deviceKey, token: null, lastMirrorAtMs });
       try {
         await this.namespace.delete(deviceStorageKey(deviceKey));
       } catch (error) {
-        await this.restoreState(previous);
+        await this.restoreState(rollback);
         throw error;
       }
       return true;
