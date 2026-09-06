@@ -55,9 +55,9 @@ For ambiguous behavior, the source of truth is the upstream Bark project and its
 - Package manager: `pnpm`
 - Tests: Vitest
 
-Device registration is stored as `device_key -> device_token` in KV. A per-device Durable Object serializes registration and invalid-token cleanup so compare-and-delete cannot race with token replacement. Push sending is abstracted behind interfaces so route behavior can be tested without real APNs or real KV.
+Device registration is authoritative in a per-device Durable Object, which serializes registration and invalid-token cleanup so compare-and-delete cannot race with token replacement. Each object durably schedules a rate-limited `device_key -> device_token` mirror in KV and retries failed mirrors with alarms. Existing KV-only registrations are migrated when they are next registered. Push sending is abstracted behind interfaces so route behavior can be tested without real APNs or real KV.
 
-> **中文说明：** 运行时为 Cloudflare Worker，路由使用 Hono，存储使用 Cloudflare KV，并按 device key 使用 Durable Object 串行协调注册与无效 token 清理，推送通过 `fetch` + Worker Web Crypto 实现 APNs 通信。设备注册以 `device_key -> device_token` 存储在 KV 中，推送通过接口抽象，无需真实 APNs 或 KV 即可测试路由行为。
+> **中文说明：** 运行时为 Cloudflare Worker，路由使用 Hono，并按 device key 使用 Durable Object 作为设备注册的权威存储，串行协调注册与无效 token 清理。每个对象把 `device_key -> device_token` 限速镜像到 Cloudflare KV，并通过 alarm 持久重试失败的镜像；旧的 KV-only 注册会在下次注册时迁移。推送通过 `fetch` + Worker Web Crypto 实现 APNs 通信，并通过接口抽象，无需真实 APNs 或 KV 即可测试路由行为。
 
 ## API Compatibility
 
@@ -77,6 +77,8 @@ Implemented route surface:
 - `GET|POST /:device_key/:title/:subtitle/:body`
 - `ALL /mcp`
 - `ALL /mcp/:device_key`
+
+`GET /info` counts the eventually consistent KV mirror, so its device count can temporarily lag an authoritative registration while that registration's mirror is pending or retrying. / `GET /info` 统计最终一致的 KV 镜像，因此当权威注册仍在等待镜像或重试时，设备数量可能暂时滞后。
 
 Compatibility behaviors intentionally preserved:
 
@@ -121,12 +123,12 @@ What is intentionally not preserved:
 
 Cloudflare-specific tradeoffs:
 
-- KV is eventually consistent, unlike local in-process storage.
-- A Durable Object per device key serializes KV registration and cleanup operations, adding one coordination hop to those operations.
+- KV mirrors are eventually consistent, while each per-device Durable Object provides the authoritative registration state.
+- A Durable Object per device key serializes registration and cleanup, durably retries KV mirrors, and adds one coordination hop to those operations.
 - Deployment becomes much simpler, but all runtime state must fit the Worker model.
 - MCP follows the modern Streamable HTTP transport semantics, but this Worker only returns JSON responses and does not expose an SSE stream.
 
-> **中文说明：** 有意不保留的部分：Go CLI 参数、独立二进制打包、`bbolt` 本地存储、MySQL 后端模式、本地 TLS 监听、Unix socket 模式、长连接进程相关调优。Cloudflare 特有权衡：KV 是最终一致性的（不同于本地进程内存储）；每个 device key 通过一个 Durable Object 串行执行 KV 注册和清理，因此这些操作会增加一次协调调用；部署更简单，但所有运行时状态必须适配 Worker 模型；MCP 采用现代 Streamable HTTP 语义，但当前只返回 JSON，不提供 SSE 流。
+> **中文说明：** 有意不保留的部分：Go CLI 参数、独立二进制打包、`bbolt` 本地存储、MySQL 后端模式、本地 TLS 监听、Unix socket 模式、长连接进程相关调优。Cloudflare 特有权衡：每个 device key 通过一个 Durable Object 保存权威注册状态并串行执行注册和清理，同时持久重试最终一致的 KV 镜像，因此这些操作会增加一次协调调用；部署更简单，但所有运行时状态必须适配 Worker 模型；MCP 采用现代 Streamable HTTP 语义，但当前只返回 JSON，不提供 SSE 流。
 
 ## APNs Configuration
 
