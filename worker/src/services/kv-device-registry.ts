@@ -1,4 +1,5 @@
 import { generateDeviceKey } from "@/services/device-key";
+import { DeviceLookupError } from "@/services/device-registry-errors";
 import type {
   DeviceRegistryCoordinatorStub,
 } from "@/services/device-registry-coordinator";
@@ -58,10 +59,10 @@ export class KVDeviceRegistry implements DeviceRegistry {
   async deviceTokenByKey(key: string): Promise<string> {
     const token = await this.coordinatorForKey(key).deviceTokenByKey(key);
     if (token === null) {
-      throw new Error("key not found");
+      throw new DeviceLookupError("key not found");
     }
     if (token.length === 0) {
-      throw new Error("device token invalid");
+      throw new DeviceLookupError("device token invalid");
     }
     return token;
   }

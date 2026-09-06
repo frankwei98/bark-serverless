@@ -4,6 +4,21 @@ import { buildPushMessage } from "@/routes/push";
 import { createApnsError, createHarness } from "./helpers/fakes";
 
 describe("push routes", () => {
+  it.each(["/alpha/hello", "/register/alpha"])("reports storage failures safely at %s", async (path) => {
+    const { app, registry, sender } = createHarness();
+    vi.spyOn(registry, "deviceTokenByKey").mockRejectedValue(new Error("private storage details"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await app.request(path);
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toMatchObject({ code: 500, message: "internal server error" });
+      expect(sender.messages).toHaveLength(0);
+      expect(log).toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it("preserves batch results and later chunks when token cleanup fails", async () => {
     const keys = Array.from({ length: 51 }, (_, index) => `device-${index}`);
     const { app, sender, registry } = createHarness({

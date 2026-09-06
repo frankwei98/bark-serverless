@@ -1,4 +1,5 @@
 import { createApp } from "@/app";
+import { DeviceLookupError } from "@/services/device-registry-errors";
 import {
   DEFAULT_APNS_REQUEST_TIMEOUT_MS,
   DEFAULT_MAX_BATCH_PUSH_COUNT,
@@ -42,10 +43,10 @@ export class InMemoryDeviceRegistry implements DeviceRegistry {
   async deviceTokenByKey(key: string): Promise<string> {
     const token = this.store.get(key);
     if (token === undefined) {
-      throw new Error("key not found");
+      throw new DeviceLookupError("key not found");
     }
     if (token.length === 0) {
-      throw new Error("device token invalid");
+      throw new DeviceLookupError("device token invalid");
     }
     return token;
   }
