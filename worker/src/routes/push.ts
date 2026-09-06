@@ -1,6 +1,6 @@
 import type { Context, Hono } from "hono";
 
-import { failed, getErrorMessage, success, withData } from "@/utils/responses";
+import { failed, getErrorMessage, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
 import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
@@ -191,10 +191,14 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
 
     // The registry coordinates this compare-and-delete with re-registration.
     if (isBadDeviceTokenError(normalized)) {
-      await options.deps.registry.deleteDeviceByKey(
-        message.deviceKey,
-        deviceToken,
-      );
+      try {
+        await options.deps.registry.deleteDeviceByKey(
+          message.deviceKey,
+          deviceToken,
+        );
+      } catch (cleanupError) {
+        console.error("Invalid device token cleanup failed", cleanupError);
+      }
     }
 
     return {
@@ -255,7 +259,13 @@ async function pushBatch(
     const chunkRows = await Promise.all(
       chunk.map(async (deviceKey) => {
         const nextParams = { ...params, device_key: deviceKey };
-        const attempt = await pushOne(nextParams, options);
+        let attempt: PushAttempt;
+        try {
+          attempt = await pushOne(nextParams, options);
+        } catch (error) {
+          console.error("Batch device push failed", error);
+          attempt = { code: 500, error: new Error(INTERNAL_ERROR_MESSAGE) };
+        }
 
         const row: Record<string, unknown> = {
           code: attempt.code,
