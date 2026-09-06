@@ -331,40 +331,44 @@ describe("CloudflareApnsClient", () => {
     expect(importKey).toHaveBeenCalledTimes(1);
   });
 
-  it("treats numeric delete=1 as a background push", async () => {
-    installCryptoStub();
+  it.each([1, "1"])(
+    "treats delete=%s as a priority 5 background push",
+    async (deleteFlag) => {
+      installCryptoStub();
 
-    const client = new CloudflareApnsClient({
-      privateKey: TEST_PKCS8_PRIVATE_KEY,
-      keyId: "KEYID123",
-      teamId: "TEAMID123",
-      topic: "me.fin.bark",
-    });
+      const client = new CloudflareApnsClient({
+        privateKey: TEST_PKCS8_PRIVATE_KEY,
+        keyId: "KEYID123",
+        teamId: "TEAMID123",
+        topic: "me.fin.bark",
+      });
 
-    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
+      const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
 
-    await client.send(
-      createMessage({
-        extParams: {
-          delete: 1,
-        },
-      }),
-    );
+      await client.send(
+        createMessage({
+          extParams: {
+            delete: deleteFlag,
+          },
+        }),
+      );
 
-    const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
-    const init = calls[0]![1];
-    const headers = init.headers as Record<string, string>;
-    const payload = JSON.parse(String(init.body)) as {
-      aps: Record<string, unknown>;
-      delete: string;
-    };
+      const calls = fetchMock.mock.calls as unknown as Array<[unknown, RequestInit]>;
+      const init = calls[0]![1];
+      const headers = init.headers as Record<string, string>;
+      const payload = JSON.parse(String(init.body)) as {
+        aps: Record<string, unknown>;
+        delete: string;
+      };
 
-    expect(headers["apns-push-type"]).toBe("background");
-    expect(payload.aps["content-available"]).toBe(1);
-    expect(payload.aps.alert).toBeUndefined();
-    expect(payload.delete).toBe("1");
-  });
+      expect(headers["apns-push-type"]).toBe("background");
+      expect(headers["apns-priority"]).toBe("5");
+      expect(payload.aps["content-available"]).toBe(1);
+      expect(payload.aps.alert).toBeUndefined();
+      expect(payload.delete).toBe("1");
+    },
+  );
 
   it("maps APNs network failures to statusCode 500 errors", async () => {
     installCryptoStub();
