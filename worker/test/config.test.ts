@@ -9,8 +9,19 @@ import {
   parseCloseRegister,
   parseMaxBatchPushCount,
   parseMaxRequestBodyBytes,
+  parseHuaweiRequestTimeoutMs,
 } from "@/config";
 import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/utils/validation";
+
+describe("Huawei request timeout", () => {
+  it.each([undefined, "", "0", "-1", "60001", "1x", "1.5", "Infinity"])("bounds invalid configuration %s", (value) => {
+    expect(parseHuaweiRequestTimeoutMs(value)).toBe(10_000);
+  });
+  it("accepts a timeout up to the hard maximum", () => {
+    expect(parseHuaweiRequestTimeoutMs("1250")).toBe(1250);
+    expect(parseHuaweiRequestTimeoutMs("60000")).toBe(60000);
+  });
+});
 
 describe("parseMaxBatchPushCount", () => {
   it("uses a finite default when the env var is absent", () => {

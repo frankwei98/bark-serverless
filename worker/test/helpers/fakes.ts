@@ -122,6 +122,7 @@ export function createHarness(options: TestHarnessOptions = {}): TestHarness {
     maxBatchPushCount: DEFAULT_MAX_BATCH_PUSH_COUNT,
     maxRequestBodyBytes: 4 * 1024 * 1024,
     apnsRequestTimeoutMs: DEFAULT_APNS_REQUEST_TIMEOUT_MS,
+    huaweiRequestTimeoutMs: 10_000,
     mcpSessionSecret: undefined,
     closeRegister: false,
     ...options.config,

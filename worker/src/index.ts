@@ -1,6 +1,8 @@
 import { createApp } from "@/app";
 import { createBuildInfoFromEnv, createConfigFromEnv } from "@/config";
 import { CloudflareApnsClient } from "@/services/cloudflare-apns-client";
+import { HuaweiPushSender } from "@/services/huawei-push-sender";
+import { ProviderPushSender } from "@/services/provider-push-sender";
 import { KVDeviceRegistry } from "@/services/kv-device-registry";
 import type { BarkBindings } from "@/types";
 
@@ -22,13 +24,19 @@ function buildApp(env: BarkBindings) {
         env.DEVICE_REGISTRY,
         (key) => env.DEVICE_REGISTRY_COORDINATOR.getByName(key),
       ),
-      pushSender: new CloudflareApnsClient({
+      pushSender: new ProviderPushSender(new CloudflareApnsClient({
         privateKey: env.APNS_PRIVATE_KEY,
         keyId: env.APNS_KEY_ID,
         teamId: env.APNS_TEAM_ID,
         topic: env.APNS_TOPIC,
         timeoutMs: config.apnsRequestTimeoutMs,
-      }),
+      }), new HuaweiPushSender({
+        projectId: env.HUAWEI_PROJECT_ID,
+        keyId: env.HUAWEI_KEY_ID,
+        subAccount: env.HUAWEI_SUB_ACCOUNT,
+        privateKey: env.HUAWEI_PRIVATE_KEY,
+        timeoutMs: config.huaweiRequestTimeoutMs,
+      })),
       now: () => Math.floor(Date.now() / 1000),
       buildInfo: createBuildInfoFromEnv(env),
     },

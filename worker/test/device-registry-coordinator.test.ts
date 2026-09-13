@@ -59,6 +59,23 @@ function createNamespace(seed: Record<string, string> = {}) {
 }
 
 describe("DeviceRegistryCoordinator", () => {
+  it("preserves prefixed registrations and compares the entire stored token", async () => {
+    const { storage } = createStorage();
+    const { namespace, values } = createNamespace({ "device:alpha": "legacy-ios-token" });
+    let now = 4000;
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
+    await coordinator.saveDeviceTokenByKey("alpha", "harmony:new-token");
+    expect(values.get("device:alpha")).toBe("harmony:new-token");
+    await expect(coordinator.deleteDeviceByKey("alpha", "legacy-ios-token")).resolves.toBe(false);
+    await expect(coordinator.deleteDeviceByKey("alpha", "new-token")).resolves.toBe(false);
+    await expect(coordinator.deleteDeviceByKey("alpha", "harmony:new-token")).resolves.toBe(true);
+    now += 1000;
+    await coordinator.alarm();
+    expect(values.has("device:alpha")).toBe(false);
+    const reloaded = new DeviceRegistryCoordinatorCore(storage, namespace);
+    await expect(reloaded.deviceTokenByKey("alpha")).resolves.toBeNull();
+  });
+
   it("preserves a replacement token when registration wins the race", async () => {
     const { storage } = createStorage();
     const { namespace, values } = createNamespace({ "device:alpha": "old-token" });

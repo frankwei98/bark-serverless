@@ -5,6 +5,7 @@ import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } fro
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord, normalizeParamKeys } from "@/utils/objects";
 import { DeviceLookupError } from "@/services/device-registry-errors";
+import { routeDeviceToken } from "@/services/device-token";
 
 export interface PushRouteOptions {
   config: AppConfig;
@@ -195,7 +196,7 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
     const normalized = normalizePushError(error);
 
     // The registry coordinates this compare-and-delete with re-registration.
-    if (isBadDeviceTokenError(normalized)) {
+    if (routeDeviceToken(deviceToken).provider === "apns" && isBadDeviceTokenError(normalized)) {
       try {
         await options.deps.registry.deleteDeviceByKey(
           message.deviceKey,
