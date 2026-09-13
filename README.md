@@ -20,15 +20,16 @@ The Worker implementation is usable in production for the main Bark flows.
 - `ALL /mcp` and `ALL /mcp/:device_key` are working.
 - APNs delivery has been validated with real-device smoke tests.
 - Compatibility behavior is covered by automated contract tests.
+- Shark / HarmonyOS support uses Huawei Push Kit v3 with optional service-account bindings. See [configuration and device validation](docs/HarmonyOS_SHARK.md); Shark real-device validation is pending.
 
 Current validation coverage:
 
-- `111` automated tests passing with `pnpm test`
+- Automated contract tests run with `pnpm test`
 - TypeScript checks passing with `pnpm check`
 - Wrangler dry-run build passing with `pnpm build`
 - Live smoke tests confirmed for legacy push, `/push`, `/mcp`, and `/mcp/:device_key`
 
-> **中文说明：** Worker 实现已可用于生产环境，覆盖主要 Bark 推送流程。旧版推送路由、`POST /push`、MCP 端点均已可用，APNs 推送经过真机验证，兼容性行为由自动化合约测试覆盖。当前 111 个自动化测试全部通过。
+> **中文说明：** Worker 实现覆盖主要 Bark 推送流程。旧版推送路由、`POST /push`、MCP 端点均已可用，APNs 推送经过真机验证，兼容性行为由自动化合约测试覆盖。新增 Shark / HarmonyOS Push Kit v3 支持，需配置有权向客户端所属项目推送的服务账号；鸿蒙真机兼容性待验证，参见[配置与验证说明](docs/HarmonyOS_SHARK.md)。
 
 ## Migration Approach
 
@@ -51,7 +52,7 @@ For ambiguous behavior, the source of truth is the upstream Bark project and its
 - Router: Hono
 - Storage: Cloudflare KV
 - Coordination: Durable Objects, sharded by device key
-- Push transport: APNs over `fetch` + Worker Web Crypto
+- Push transport: APNs and Huawei Push Kit v3 over `fetch` + Worker Web Crypto
 - Package manager: `pnpm`
 - Tests: Vitest
 
@@ -298,4 +299,5 @@ pnpm build
 
 - [API V2](docs/API_V2.md)
 - [MCP](docs/MCP.md)
+- [Shark / HarmonyOS configuration and validation](docs/HarmonyOS_SHARK.md)
 - Upstream project: [Finb/Bark](https://github.com/Finb/Bark)
