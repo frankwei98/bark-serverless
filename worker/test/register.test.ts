@@ -3,6 +3,116 @@ import { describe, expect, it, vi } from "vitest";
 import { createHarness } from "./helpers/fakes";
 
 describe("register routes", () => {
+  it.each(["harmony", " HarmonyOS ", "HMOS"])(
+    "registers %s tokens using the Harmony provider namespace",
+    async (platform) => {
+      const { app, registry } = createHarness();
+
+      const response = await app.request("http://example.com/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          device_key: "shark-device",
+          device_token: "shark-token",
+          platform,
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        data: { device_token: "harmony:shark-token" },
+      });
+      expect(registry.snapshot()).toEqual({
+        "shark-device": "harmony:shark-token",
+      });
+    },
+  );
+
+  it("keeps missing and unknown platforms on the legacy APNs path", async () => {
+    const { app, registry } = createHarness();
+
+    for (const [device_key, platform] of [
+      ["missing-platform", undefined],
+      ["unknown-platform", "android"],
+    ] as const) {
+      const response = await app.request("http://example.com/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ device_key, device_token: "legacy-token", platform }),
+      });
+      expect(response.status).toBe(200);
+    }
+
+    expect(registry.snapshot()).toEqual({
+      "missing-platform": "legacy-token",
+      "unknown-platform": "legacy-token",
+    });
+  });
+
+  it("accepts an already encoded Harmony token without adding another prefix", async () => {
+    const { app, registry } = createHarness();
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        device_key: "shark-device",
+        device_token: "harmony:shark-token",
+        platform: "harmony",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(registry.snapshot()).toEqual({
+      "shark-device": "harmony:shark-token",
+    });
+  });
+
+  it.each(["", "harmony:", "harmony:harmony:token"])(
+    "rejects invalid Harmony token %j",
+    async (deviceToken) => {
+      const { app } = createHarness();
+      const response = await app.request("http://example.com/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ device_token: deviceToken, platform: "harmony" }),
+      });
+      expect(response.status).toBe(400);
+    },
+  );
+
+  it("allows Harmony tokens beyond the APNs token length limit", async () => {
+    const { app } = createHarness();
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_token: "h".repeat(161), platform: "hmos" }),
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects Harmony tokens beyond the deployment byte limit", async () => {
+    const { app } = createHarness();
+    const response = await app.request("http://example.com/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_token: "鸿".repeat(1366), platform: "hmos" }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it.each(["harmony:", "harmony:harmony:token"])(
+    "rejects malformed reserved-prefix input without a platform",
+    async (deviceToken) => {
+      const { app } = createHarness();
+      const response = await app.request("http://example.com/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ device_token: deviceToken }),
+      });
+      expect(response.status).toBe(400);
+    },
+  );
+
   it("registers a device through the GET compatibility endpoint", async () => {
     const { app, registry } = createHarness();
     registry.setGeneratedKeys(["generated-a"]);
