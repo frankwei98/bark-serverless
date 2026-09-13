@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CloudflareApnsClient } from "@/services/cloudflare-apns-client";
+import { buildPushMessage } from "@/routes/push";
 import type { PushMessage } from "@/types";
 
 const TEST_PKCS8_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
@@ -65,6 +66,33 @@ function createMessage(overrides: Partial<PushMessage> = {}): PushMessage {
 }
 
 describe("CloudflareApnsClient", () => {
+  it("keeps Harmony sound metadata out of the existing APNs payload", async () => {
+    installCryptoStub();
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await client.send({
+      ...buildPushMessage({ device_key: "device-key", body: "Hello", sound: "bell" }),
+      deviceToken: "device-token",
+    });
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(payload).toEqual({
+      aps: {
+        "mutable-content": 1,
+        alert: { body: "Hello" },
+        sound: "bell.caf",
+        category: "myNotificationCategory",
+      },
+    });
+  });
+
   it("sends Bark custom fields at the top level instead of inside aps", async () => {
     installCryptoStub();
 
