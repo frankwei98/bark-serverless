@@ -1,11 +1,11 @@
 import type { PushMessage, PushSender } from "@/types";
 import { isRecord } from "@/utils/objects";
+import { DEFAULT_HUAWEI_REQUEST_TIMEOUT_MS, HARD_MAX_HUAWEI_REQUEST_TIMEOUT_MS } from "@/config";
 
 const HUAWEI_PUSH_ORIGIN = "https://push-api.cloud.huawei.com";
 const DEFAULT_TOKEN_AUDIENCE = "https://oauth-login.cloud.huawei.com/oauth2/v3/token";
 const JWT_LIFETIME_SECONDS = 60 * 60;
 const JWT_REFRESH_SKEW_SECONDS = 30;
-const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BODY_BYTES = 64 * 1024;
 const MAX_MESSAGE_BODY_BYTES = 4 * 1024;
 const MAX_TTL_SECONDS = 1_296_000;
@@ -393,8 +393,8 @@ export class HuaweiPushSender implements PushSender {
     const controller = new AbortController();
     const configuredTimeout = this.config.timeoutMs;
     const timeoutMs = configuredTimeout !== undefined && Number.isInteger(configuredTimeout)
-      && configuredTimeout > 0 && configuredTimeout <= 60_000
-      ? configuredTimeout : DEFAULT_TIMEOUT_MS;
+      && configuredTimeout > 0 && configuredTimeout <= HARD_MAX_HUAWEI_REQUEST_TIMEOUT_MS
+      ? configuredTimeout : DEFAULT_HUAWEI_REQUEST_TIMEOUT_MS;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
       timeoutId = setTimeout(() => {

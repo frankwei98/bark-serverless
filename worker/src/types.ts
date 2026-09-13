@@ -23,6 +23,7 @@ export interface AppConfig {
   maxBatchPushCount: number;
   maxRequestBodyBytes: number;
   apnsRequestTimeoutMs: number;
+  huaweiRequestTimeoutMs: number;
   mcpSessionSecret?: string;
   closeRegister: boolean;
 }
@@ -45,6 +46,11 @@ export interface BarkBindings {
   APNS_KEY_ID?: string;
   APNS_TEAM_ID?: string;
   APNS_TOPIC?: string;
+  HUAWEI_PROJECT_ID?: string;
+  HUAWEI_KEY_ID?: string;
+  HUAWEI_SUB_ACCOUNT?: string;
+  HUAWEI_PRIVATE_KEY?: string;
+  HUAWEI_REQUEST_TIMEOUT_MS?: string;
 }
 
 export type ParamValue =

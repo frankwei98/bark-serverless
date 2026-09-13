@@ -3,6 +3,8 @@ import { DEFAULT_MAX_REQUEST_BODY_BYTES } from "@/utils/validation";
 
 export const DEFAULT_MAX_BATCH_PUSH_COUNT = 1000;
 export const DEFAULT_APNS_REQUEST_TIMEOUT_MS = 10_000;
+export const DEFAULT_HUAWEI_REQUEST_TIMEOUT_MS = 10_000;
+export const HARD_MAX_HUAWEI_REQUEST_TIMEOUT_MS = 60_000;
 export const HARD_MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
 export const HARD_MAX_APNS_REQUEST_TIMEOUT_MS = 60_000;
 
@@ -62,6 +64,11 @@ export function parseCloseRegister(raw?: string | boolean): boolean {
   return raw?.trim().toLowerCase() === "true";
 }
 
+export function parseHuaweiRequestTimeoutMs(raw?: string): number {
+  if (!raw || !/^\d+$/.test(raw.trim())) return DEFAULT_HUAWEI_REQUEST_TIMEOUT_MS;
+  return parsePositiveInteger(raw, DEFAULT_HUAWEI_REQUEST_TIMEOUT_MS, HARD_MAX_HUAWEI_REQUEST_TIMEOUT_MS);
+}
+
 export function createConfigFromEnv(env: BarkBindings): AppConfig {
   return {
     urlPrefix: normalizeUrlPrefix(env.URL_PREFIX),
@@ -70,6 +77,7 @@ export function createConfigFromEnv(env: BarkBindings): AppConfig {
     maxBatchPushCount: parseMaxBatchPushCount(env.MAX_BATCH_PUSH_COUNT),
     maxRequestBodyBytes: parseMaxRequestBodyBytes(env.MAX_REQUEST_BODY_BYTES),
     apnsRequestTimeoutMs: parseApnsRequestTimeoutMs(env.APNS_REQUEST_TIMEOUT_MS),
+    huaweiRequestTimeoutMs: parseHuaweiRequestTimeoutMs(env.HUAWEI_REQUEST_TIMEOUT_MS),
     mcpSessionSecret: env.MCP_SESSION_SECRET,
     closeRegister: parseCloseRegister(env.CLOSE_REGISTER),
   };
