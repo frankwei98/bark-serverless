@@ -265,6 +265,21 @@ curl_close($curl);
 echo $response;
 ```
 
+## Shark / HarmonyOS registration
+
+`POST /register` accepts optional `platform` in JSON or form data. `GET /register` accepts it in the query string. `harmony`, `harmonyos`, and `hmos` select Harmony registration, ignoring case and surrounding whitespace. Existing `device_key` / `device_token` and legacy `key` / `devicetoken` fields are unchanged.
+
+```json
+{
+  "device_token": "<device-push-token>",
+  "platform": "harmony"
+}
+```
+
+The response retains `key`, `device_key`, and `device_token`; Harmony tokens carry one `harmony:` prefix. The same prefix selects Huawei on push. Ordinary tokens with missing or unknown platform values retain APNs behavior. A recognized Harmony platform is required to register tokens longer than the legacy 160-character limit; Harmony raw tokens are bounded to 4096 UTF-8 bytes.
+
+Existing V1 paths, `/push` and MCP route each recipient through its registered provider. See [Shark configuration, supported fields, and device validation](HarmonyOS_SHARK.md) for the current compatibility boundary.
+
 ## Misc
 
 ### Ping
