@@ -1,0 +1,3192 @@
+# Sanitized unified diff
+# Comparison: Finb/bark-server master...xiaobingtech:bark-server:master
+# Common ancestor: 478659ecdd75a38185d7275d154d78e9c2b752b
+# Upstream tip: 3df8990fcbc407a3f5638eea8cedc3289d1a405d
+# Fork tip: 32cda6d895d0e75be3ef4ee1ad9f157f4bd154e2
+# Source: https://github.com/Finb/bark-server/compare/master...xiaobingtech:bark-server:master
+# Safety: the fork's embedded Huawei private key and binary bark.db are represented by metadata below, not copied here.
+diff --git a/.gitignore b/.gitignore
+index 8c9ec7f16bd974fdf4f15aa3ea66b80a8ed44a43..d6e62ad16bb98224699a20e2a7d0a983b8c64041 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -15,3 +15,5 @@ bark-server
+ dist
+ .idea/
+ .vscode/
++
++.DS_Store
+diff --git a/HarmonyOS-PushKit/功能介绍-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md b/HarmonyOS-PushKit/功能介绍-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d993a9b56d0cdaf2775bc5f2916a99dab2ac661
+--- /dev/null
++++ b/HarmonyOS-PushKit/功能介绍-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+@@ -0,0 +1,140 @@
++V3场景化接口将典型的推送场景按照类型拆分为多种场景，不同场景定义为不同**push-type**，提供基于场景的消息发送，治理和差异化能力，实现更好的消息触达和用户使用体验。
++
++## 场景介绍
++
++展开
++
++| 
++push-type
++
++ | 
++
++名称
++
++ | 
++
++场景介绍
++
++ | 
++
++备注
++
++ |
++| --- | --- | --- | --- |
++| 
++
++0
++
++ | 
++
++Alert消息
++
++ | 
++
++通知消息。
++
++ | 
++
++需[申请通知消息自分类权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section16708911111611)
++
++ |
++| 
++
++1
++
++ | 
++
++卡片刷新
++
++ | 
++
++卡片刷新。
++
++ | 
++
++\-
++
++ |
++| 
++
++2
++
++ | 
++
++语音播报消息
++
++ | 
++
++Push Kit拉起通知扩展子进程，您可以在通知扩展子进程中处理语音播报业务。
++
++ | 
++
++需申请[推送语音播报消息权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section159981112245)
++
++ |
++| 
++
++6
++
++ | 
++
++后台消息
++
++ | 
++
++Push Kit检测应用是否启动，应用如果启动消息传递到目标应用。应用如果未启动，则缓存。
++
++ | 
++
++\-
++
++ |
++| 
++
++7
++
++ | 
++
++实况窗消息
++
++ | 
++
++实况窗创建、更新或结束。
++
++ | 
++
++需[申请实况窗权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/liveview-rights)
++
++ |
++| 
++
++10
++
++ | 
++
++应用内通话消息
++
++ | 
++
++应用内通话消息。
++
++ | 
++
++需[申请推送应用内通话消息权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section7291115452410)
++
++ |
++
++## 使用约束
++
+++   消息体最大不能超过4096Bytes（不包括Push Token）。
+++   消息发送量，测试消息（参考消息体pushOptions.[testMessage](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section418321011212)）每个项目限制所有应用共享1000条/天，正式消息区分场景有不同的配额，参考[消息频控](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-msg-freq-control)说明。
++
++相关推荐
++
++意见反馈
++
++以上内容对您是否有帮助？
++
++意见反馈
++
++如果您有其他疑问，您也可以通过开发者社区问答频道来和我们联系探讨。
+\ No newline at end of file
+diff --git a/HarmonyOS-PushKit/响应参数-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md b/HarmonyOS-PushKit/响应参数-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a3d4bb49f6c8d966c68ea4252ff613e616db4ce
+--- /dev/null
++++ b/HarmonyOS-PushKit/响应参数-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+@@ -0,0 +1,615 @@
++## Response Body
++
++展开
++
++| 
++参数
++
++ | 
++
++是否必选
++
++ | 
++
++参数类型
++
++ | 
++
++描述
++
++ |
++| --- | --- | --- | --- |
++| 
++
++code
++
++ | 
++
++是
++
++ | 
++
++String
++
++ | 
++
++响应码。
++
++ |
++| 
++
++msg
++
++ | 
++
++是
++
++ | 
++
++String
++
++ | 
++
++响应码描述。
++
++ |
++| 
++
++requestId
++
++ | 
++
++是
++
++ | 
++
++String
++
++ | 
++
++请求标识。
++
++ |
++
++## 响应示例
++
++**响应成功示例：**
++
++收起
++
++自动换行
++
++深色代码主题
++
++复制
++
++**响应失败示例：**
++
++收起
++
++自动换行
++
++深色代码主题
++
++复制
++
++## HTTP响应码
++
++展开
++
++| 
++HTTP响应码
++
++ | 
++
++描述
++
++ | 
++
++解决方法
++
++ |
++| --- | --- | --- |
++| 
++
++200
++
++ | 
++
++成功。
++
++ | 
++
++\-
++
++ |
++| 
++
++400
++
++ | 
++
++参数错误。
++
++ | 
++
++请检查业务响应码并根据业务响应码进一步排查问题。
++
++ |
++| 
++
++401
++
++ | 
++
++鉴权失败。
++
++ | 
++
++请检查HTTP头中Authorization参数。
++
++ |
++| 
++
++404
++
++ | 
++
++找不到服务。
++
++ | 
++
++请检查请求URI是否正确。
++
++ |
++| 
++
++500
++
++ | 
++
++服务内部错误。
++
++ | 
++
++请通过[在线提单](https://developer.huawei.com/consumer/cn/support/feedback/#/)提交问题。
++
++ |
++| 
++
++502
++
++ | 
++
++请求连接异常，常见于网络状况不稳定。
++
++ | 
++
++建议稍后重试，或通过[在线提单](https://developer.huawei.com/consumer/cn/support/feedback/#/)提交问题。
++
++ |
++| 
++
++503
++
++ | 
++
++流量控制。
++
++ | 
++
+++   平均分配发送速度。
+++   平均分布推送时间段，不要集中发送。
++
++ |
++
++## 业务响应码
++
++注意
++
++通过业务响应码定位问题之前，请优先检查[消息推送接口](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct)URL（https://push-api.cloud.huawei.com/**v3**/**\[projectId\]**/messages:send）是否正确：
++
+++   请使用的v3版本的推送接口URL，不用使用v1或v2版本的推送接口URL，详情请参见[场景化消息中的请求URL版本问题](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-faq-8)。
+++   请检查推送接口地址中的projectId，确保与您当前应用所属的项目保持一致，若不一致请更新推送接口URL中的projectId，并重新[生成鉴权令牌](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)，应用重新[获取Push Token](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-get-token)，再进行消息推送。
++
++### 80000000 成功
++
++**错误信息**
++
++Success.
++
++**错误描述**
++
++发送成功。
++
++**可能原因**
++
++发送成功。
++
++**处理步骤**
++
++不涉及。
++
++### 80100000 部分Token发送成功
++
++**错误信息**
++
++Check Parameter Partial Success.
++
++**错误描述**
++
++部分Token发送成功。
++
++**可能原因**
++
++1.  noPushTypeRight：未申请请求头中push-type对应场景的权益。
++2.  noRight：生成Push Token的应用不属于请求url中projectId对应的项目。
++3.  atomicUnableSendUnsubscribedMsg：元服务不支持本次请求中对应的消息场景。
++4.  tokenFormatError：Token格式错误。
++5.  countryNotSupport：国家不支持。
++6.  tokenPlatformNotSupport：不支持三方代理Token。
++7.  disableSendHuaweiMsgBecauseOfPenalty：应用被违规处罚。
++8.  differentImgVerifyPolicy：图片风控使用的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-image-control#section13271045101216)与推送时的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct#section20573634202313)不一致。
++9.  appinfoError：应用未创建。
++10.  noRightToSendThisLiveNotificationEvent：没有申请对应实况窗场景的权益。
++
++**处理步骤**
++
++请根据响应消息中的提示，排查失败的Token是否存在以下情况：
++
++1.  noPushTypeRight：请开通请求头中push-type对应场景的权益，语音播报消息（push-type为2）权益申请可参考[申请推送语音播报消息权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section159981112245)，应用内通话消息（push-type为10）权益申请可参考[申请推送应用内通话消息权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section7291115452410)。
++2.  noRight：请检查生成Push Token的应用是否属于请求url中projectId对应的项目，即确保请求URL（https://push-api.cloud.huawei.com/v3/**\[projectId\]**/messages:send）中的**projectId**与[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站中该应用所属的“项目ID”一致。
++    
++    ![](https://alliance-communityfile-drcn.dbankcdn.com/FileServer/getFile/cmtyPub/011/111/111/0000000000011111111.20260213154238.71555750370481383174058664136107:50001231000000:2800:7ED481036A14049637F24C426AC2A5BB2C6AA7A9AD691D78D4E0CFB80B831FE2.png "点击放大")
++    
++3.  atomicUnableSendUnsubscribedMsg：元服务**仅支持**发送授权订阅消息、卡片刷新消息，请排查消息体内容。
++4.  tokenFormatError：请检查Push Token格式是否错误， 并重新[申请Push Token](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-get-token)。
++5.  countryNotSupport：请通过[在线提单](https://developer.huawei.com/consumer/cn/support/feedback/#/)提交问题。
++6.  tokenPlatformNotSupport：请重新[申请Push Token](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-get-token)。
++7.  disableSendHuaweiMsgBecauseOfPenalty：请在[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站上检查并处理违规后再尝试发送消息。
++8.  differentImgVerifyPolicy：请确保图片风控使用的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-image-control#section13271045101216)与推送时的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct#section20573634202313)一致。
++9.  appinfoError：请在[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站上检查应用是否创建，如果应用已成功创建，请稍后重试。
++10.  noRightToSendThisLiveNotificationEvent： 请参见[开通实况窗权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/liveview-formal-authority)完成权益的申请。
++
++响应示例：
++
++收起
++
++自动换行
++
++深色代码主题
++
++复制
++
++### 80100001 请求参数部分错误
++
++**错误信息**
++
++Check Parameter Error.
++
++**错误描述**
++
++请求参数部分错误。
++
++**可能原因**
++
++请求参数部分错误。
++
++**处理步骤**
++
++请根据响应消息中的提示，检查并修改请求[参数内容](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param)。
++
++### 80100003 消息结构体错误
++
++**错误信息**
++
++Illegal payload, {errorTips}.
++
++**错误描述**
++
++消息结构体错误。
++
++**可能原因**
++
++消息结构体错误。
++
++**处理步骤**
++
++请根据响应消息中的提示，检查并修改[请求体结构](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct)。
++
++### 80100004 消息设置的过期时间小于当前时间导致
++
++**错误信息**
++
++Illegal expire time.
++
++**错误描述**
++
++消息设置的过期时间小于当前时间导致。
++
++**可能原因**
++
++消息设置的过期时间小于当前时间导致。
++
++**处理步骤**
++
++请根据响应消息中的提示，检查并修改消息字段[ttl](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section418321011212)。
++
++### 80100022 消息携带图片未验签
++
++**错误信息**
++
++Anti-Spam: image not verify.
++
++**错误描述**
++
++消息携带图片未验签。
++
++**可能原因**
++
++消息图片未经过风控验证。
++
++**处理步骤**
++
++请根据响应消息中的提示，检查消息图片是否正常经过风控验证，对下发的图片进行[风控校验](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-image-control)。
++
++### 80200001 认证错误
++
++**错误信息**
++
++Authentication Error.
++
++**错误描述**
++
++认证错误。
++
++**可能原因**
++
++1.  发送消息时未添加Authorization参数或Authorization的值为空。
++2.  用于申请JWT Token的Project Id和推送消息的Project Id不一致。
++3.  Authorization参数中的JWT Token与实际应用不匹配。
++4.  未使用v3版本接口发送REST API请求。
++5.  HarmonyOS 5及以上系统版本推送不再支持Oauth2.0开放鉴权，请使用[JWT（JSON Web Tokens）](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)鉴权。
++
++**处理步骤**
++
++请根据响应消息中的提示，排查请求头中Authorization参数鉴权失败是否存在以下情况：
++
++1.  请检查发送消息时是否添加Authorization参数或Authorization的值为空。
++2.  请参考[鉴权令牌生成步骤](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token#section16173145352)中的步骤二，检查推送请求URL（https://push-api.cloud.huawei.com/**v3**/\[projectId\]/messages:send）中的projectId，确保与您当前应用所属的项目保持一致。
++3.  请检查Authorization参数中的JWT Token与实际应用是否匹配，详情参见[基于服务账号生成鉴权令牌](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)。
++4.  请使用v3版本的请求URL（https://push-api.cloud.huawei.com/**v3**/\[projectId\]/messages:send）发送REST API请求。
++5.  使用[JWT（JSON Web Tokens）](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)方式生成令牌后再推送消息。
++
++### 80200005 JWT Token过期
++
++**错误信息**
++
++Jwt token expired.
++
++**错误描述**
++
++JWT Token过期。
++
++**可能原因**
++
++JWT Token过期。
++
++**处理步骤**
++
++请根据响应消息中的提示，重新生成JWT Token后再推送消息，请参见[基于服务账号生成鉴权令牌](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)。
++
++### 80300002 当前应用无权限下发推送消息
++
++**错误信息**
++
++No permission to send message to these tmIDs.
++
++**错误描述**
++
++当前应用无权限下发推送消息。
++
++**可能原因**
++
++1.  推送服务未开通。
++2.  推送服务已开通，但推送请求URL中的projectId与当前应用所属的项目不一致。
++
++**处理步骤**
++
++1.  请登录[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站，查看推送服务是否已开通，请参见[开通推送服务](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-config-setting)。
++2.  请参考[鉴权令牌生成步骤](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token#section16173145352)中的步骤二，检查推送请求URL（https://push-api.cloud.huawei.com/**v3**/\[projectId\]/messages:send）中的projectId，确保与您当前应用所属的项目保持一致。
++
++请确保当前应用所属的项目已开通了推送服务，并基于该项目重新[生成鉴权令牌](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)，并重新尝试推送消息。
++
++### 80300007 所有Token都是无效的
++
++**错误信息**
++
++All the tokens are invalid.
++
++**错误描述**
++
++所有Token都是无效的。
++
++**可能原因**
++
++1.  noPushTypeRight：未申请请求头中push-type对应场景的权益。
++2.  noRight：生成Push Token的应用不属于请求url中projectId对应的项目。或终端设备从HarmonyOS 4及以下版本（简称HarmonyOS）升级到HarmonyOS 5及以上版本（简称HarmonyOS NEXT）后，Push Token未重新获取或请求URL版本未更新至V3版本。
++3.  atomicUnableSendUnsubscribedMsg：元服务不支持本次请求中对应的消息场景。
++4.  tokenFormatError：Token格式错误。
++5.  countryNotSupport：国家不支持。
++6.  tokenPlatformNotSupport：不支持三方代理Token。
++7.  disableSendHuaweiMsgBecauseOfPenalty：应用被违规处罚。
++8.  differentImgVerifyPolicy：图片风控使用的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-image-control#section13271045101216)与推送时的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct#section20573634202313)不一致。
++9.  appinfoError：应用未创建。
++10.  notSupportPlayVoice：推送自分类类型为PLAY\_VOICE（语音播报）的语音播报消息时，请求头中push-type传入错误。
++11.  noRightToSendThisLiveNotificationEvent：没有申请对应实况窗场景的权益。
++
++**处理步骤**
++
++请根据响应消息中的提示， 排查失败的Token是否存在以下情况
++
++1.  noPushTypeRight：请开通请求头中对应push-type场景的权益，语音播报消息（push-type为2）权益申请可参考[申请推送语音播报消息权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section159981112245)，应用内通话消息（push-type为10）权益申请可参考[申请推送应用内通话消息权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section7291115452410)。
++2.  noRight：请检查生成Push Token的应用是否属于请求url中projectId对应的项目，即确保请求URL（https://push-api.cloud.huawei.com/v3/**\[projectId\]**/messages:send）中的**projectId**与[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站中该应用所属的“项目ID”一致。
++    
++    ![](https://alliance-communityfile-drcn.dbankcdn.com/FileServer/getFile/cmtyPub/011/111/111/0000000000011111111.20260213154239.19870750244958280223125442902592:50001231000000:2800:E06974394BF51179C4EFBD5AC42F036E1B83CAF2F5D7FF2DB29E3F15E3292AF5.png "点击放大")
++    
++    若终端设备升级至HarmonyOS NEXT版本后，需重新生成对应的Push Token（建议您在应用启动时调用getToken()接口，若设备的Push Token发生变化，及时上报到您的应用服务器更新Push Token）。并使用[请求体参数说明](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param)、V3版本的请求URL（https://push-api.cloud.huawei.com/**v3**/\[projectId\]/messages:send）发送REST API请求。
++    
++3.  atomicUnableSendUnsubscribedMsg：元服务**仅支持**发送授权订阅消息、卡片刷新消息，请排查消息体内容。
++4.  tokenFormatError：请检查Push Token格式是否错误， 并重新[申请Push Token](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-get-token)。
++5.  countryNotSupport：请通过[在线提单](https://developer.huawei.com/consumer/cn/support/feedback/#/)提交问题。
++6.  tokenPlatformNotSupport：请重新[申请Push Token](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-get-token)。
++7.  disableSendHuaweiMsgBecauseOfPenalty：请在[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站上检查并处理违规后再尝试发送消息。
++8.  differentImgVerifyPolicy：请确保图片风控使用的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-image-control#section13271045101216)与推送时的[push-type](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct#section20573634202313)一致。
++9.  appinfoError：请在[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站上检查应用是否创建，如果应用已成功创建，请稍后重试。
++10.  notSupportPlayVoice：若应用需要推送自分类类型为PLAY\_VOICE（语音播报）的消息时，需使用语音播报消息进行推送，即请求头中push-type传入2，表示语音播报消息。
++11.  noRightToSendThisLiveNotificationEvent： 请参见[开通实况窗权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/liveview-formal-authority)完成权益的申请。
++
++响应示例：
++
++收起
++
++自动换行
++
++深色代码主题
++
++复制
++
++### 80300008 消息体大小超过4096Bytes（不包括Push Token）
++
++**错误信息**
++
++Push message size is too long.
++
++**错误描述**
++
++消息体大小超过4096Bytes（不包括Push Token）。
++
++**可能原因**
++
++请求消息体大小超过4096Bytes（不包括Push Token）
++
++**处理步骤**
++
++请根据响应消息中的提示，减小消息体后重新发送消息。
++
++### 80300010 消息体中的Token数量超过系统设置的默认值
++
++**错误信息**
++
++token count should within {0} and {1}.
++
++**错误描述**
++
++消息体中的Token数量超过系统设置的默认值。
++
++**可能原因**
++
++1.  卡片刷新消息单次发送消息仅能携带1个Token。
++2.  其余场景单次发送消息最多携带1000个Token。
++
++**处理步骤**
++
++请根据响应消息中的提示，请减少Token数量后分批发送消息。
++
++### 80300029 测试消息请求流量限制
++
++**错误信息**
++
++When send test message, the api request exceed limit.
++
++**错误描述**
++
++测试消息请求流量限制。
++
++**可能原因**
++
++测试消息发送过于频繁。
++
++**处理步骤**
++
++请根据响应消息中的提示，稍后再发送。
++
++### 80300030 测试消息单次携带Token数量超过系统设置的默认值
++
++**错误信息**
++
++When send test message, token count exceed limit.
++
++**错误描述**
++
++测试消息单次携带Token数量超过系统设置的默认值。
++
++**可能原因**
++
++1.  卡片刷新消息单次发送测试消息仅能携带1个Token。
++2.  其余场景单次发送测试消息最多携带10个Token。
++
++**处理步骤**
++
++请根据响应消息中的提示，减少Token数量后再发送消息。
++
++### 80300036 JWT有效期超过1天
++
++**错误信息**
++
++JWT expire period over threshold.
++
++**错误描述**
++
++JWT有效期超过1天。
++
++**可能原因**
++
++JWT有效期超过1天。
++
++**处理步骤**
++
++请根据响应消息中的提示，重新生成有效期小于1天的JWT Token后再推送消息。
++
++### 80300037 由于存在违规处罚导致无法发送推送消息
++
++**错误信息**
++
++Disable send huawei msg because of penalty.
++
++**错误描述**
++
++由于存在违规处罚导致无法发送推送消息。
++
++**可能原因**
++
++由于存在违规处罚导致无法发送推送消息。
++
++**处理步骤**
++
++请根据响应消息中的提示，先在[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)网站上处理违规后再尝试发送消息。
++
++### 81000001 系统内部错误
++
++**错误信息**
++
++Inner Error.
++
++**错误描述**
++
++系统内部错误。
++
++**可能原因**
++
++其他未知错误。
++
++**处理步骤**
++
++请通过[在线提单](https://developer.huawei.com/consumer/cn/support/feedback/#/)提交问题。
++
++相关推荐
++
++意见反馈
++
++以上内容对您是否有帮助？
++
++意见反馈
++
++如果您有其他疑问，您也可以通过开发者社区问答频道来和我们联系探讨。
+\ No newline at end of file
+diff --git a/HarmonyOS-PushKit/基于服务账号生成鉴权令牌.md b/HarmonyOS-PushKit/基于服务账号生成鉴权令牌.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..cec3c23125fd137ac68938e97816481a2613d266
+--- /dev/null
++++ b/HarmonyOS-PushKit/基于服务账号生成鉴权令牌.md
+@@ -0,0 +1,261 @@
++基于服务账号生成鉴权令牌
++更新时间: 2026-01-14 17:55
++概述
++服务账号（Service Account）是一种可实现服务器与服务器之间接口鉴权的账号，在华为开发者联盟的API Console上创建服务账号，您可根据返回的公私钥在业务应用中生成鉴权令牌，调用支持此类鉴权的华为公开API。
++
++服务账号令牌为JWT（JSON Web Token）格式字符串，JWT数据格式包括三个部分：
++
++Header（头部）
++Payload（负载）
++Signature（签名）
++这三个部分通过“.”进行连接，其中Signature为通过SHA256withRSA/PSS算法对Header与Payload拼接的字符串签名生成的字符串。
++
++示例
++
++eyJra*****JjNjBjMXXX.
++eyJhd*****JodHRXXX.
++BRNss*****7az5oU7-Zp5g9X2WJVXXX
++更多JWT的相关知识请参见Introduction to JSON Web Tokens。
++
++开发步骤
++创建服务账号密钥文件。
++您需要在华为开发者联盟的API Console上创建并下载推送服务API的服务账号密钥文件，凭证创建入口如下图所示，选择所在项目，创建“服务账号密钥“凭证。相关创建步骤请参见API服务操作指南-服务账号密钥。
++
++点击放大
++
++您申请后的服务账号密钥样例文件形式可参考（文件内容已经经过脱敏处理）：
++
++{
++    "project_id": "*****",
++    "key_id": "*****",
++    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIJQgIBADANBgkqhkiG9w0BAQEFAASCCSwwggkoAgEAAoICAQCKw6kJKtCh7qmMvp1u1dI27z2TKZrPOzHbQaXO/Eez0AWZ2EN+ouF496R3pfo7fQXC1XOT/YTbVC4DNZwWSMA54fu3/AOCY9Zzyi46OK*****==\n-----END PRIVATE KEY-----\n",
++    "sub_account": "*****",
++    "auth_uri": "https://oauth-login.cloud.huawei.com/oauth2/v3/authorize",
++    "token_uri": "https://oauth-login.cloud.huawei.com/oauth2/v3/token",
++    "auth_provider_cert_uri": "https://oauth-login.cloud.huawei.com/oauth2/v3/certs",
++    "client_cert_uri": "https://oauth-login.cloud.huawei.com/oauth2/v3/x509?client_id="
++}
++请确认以上密钥文件中的project_id是否与您的应用所属项目一致。
++您的应用所属项目ID查看方法：登录AppGallery Connect网站，选择“开发与服务”，在项目列表中选择对应的项目，左侧导航栏选择“项目设置”，在该页面获取。
++
++点击放大
++
++生成JWT Header数据。
++根据服务账号密钥文件中的key_id（对应示例中的kid）字段拼接以下JSON体，对JSON体进行BASE64编码。
++
++示例
++
++{
++  "kid": "*****",
++  "typ": "JWT",
++  "alg": "PS256"
++}
++字段名
++
++描述
++
++kid
++
++服务账号密钥文件中key_id字段。
++
++typ
++
++数据类型，固定为：JWT。
++
++alg
++
++算法类型，固定为：PS256。
++
++生成JWT Payload数据。
++根据服务账号密钥文件中的sub_account（对应示例中的iss）字段拼接以下JSON体，对JSON体进行BASE64编码。
++
++示例
++
++{
++  "aud": "https://oauth-login.cloud.huawei.com/oauth2/v3/token",
++  "iss": "*****",
++  "exp": 1581410664,
++  "iat": 1581407064
++}
++字段名
++
++描述
++
++iss
++
++服务账号密钥文件中sub_account字段，标识数据生成者。
++
++aud
++
++固定为：https://oauth-login.cloud.huawei.com/oauth2/v3/token。
++
++iat
++
++JWT签发UTC时间戳，为自UTC时间1970年1月1日00:00:00起的秒数（您的服务器时间需要校准为标准时间）。
++
++exp
++
++JWT到期UTC时间戳，比iat晚3600秒。
++
++生成JWT Token。
++将完成BASE64编码后的Header字符串与Payload字符串，通过“.”进行连接，您可在业务应用中，通过服务账号密钥文件中的private_key（华为不进行存储，请您妥善保管），使用SHA256withRSA/PSS算法对拼接的字符串签名。
++
++至此，您已经完成服务账号鉴权令牌JWT Token的生成。
++
++调用推送服务REST API
++您的应用调用推送服务REST API时，需要把已获得的服务账号鉴权令牌放在Authorization头部来进行鉴权。请使用v3版本调用推送服务REST API。
++
++示例
++
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type:0
++说明
++Authorization格式：Bearer后面拼接空格，再拼接获取的鉴权信息。
++
++接口版本：请使用V3版本调用推送服务REST API。
++
++场景化消息请求体中，接口URL版本为V3（https://push-api.cloud.huawei.com/v3/[projectId]/messages:send）时，仅支持给HarmonyOS Next/5.x及之后的系统版本推送通知；接口URL版本为V2（https://push-api.cloud.huawei.com/v2/[projectId]/messages:send）时，仅支持给HarmonyOS 3.x/4.x的系统版本推送通知。
++
++示例代码
++为了方便您生成服务账号鉴权令牌，我们提供了Java语言的示例代码，请按照说明替换参数运行。
++
++如果您使用其他开发语言，请选择对应的JWT开源组件进行开发。
++
++其中鉴权令牌生成步骤如下：
++
++完成上述开发步骤中的步骤1创建服务账号密钥文件后，从华为开发者联盟的API Console上创建并下载推送服务API的服务账号密钥文件（.json文件），格式如下：
++
++
++以上json文件复制至工程中，参考如下代码进行解析（以private.json为例）。
++Java
++Node.js
++Go
++Python
++PHP
++// 依赖：go get github.com/golang-jwt/jwt/v5
++
++package main
++
++import (
++    "encoding/json"
++    "encoding/pem"
++    "errors"
++    "fmt"
++    "github.com/golang-jwt/jwt/v5"
++    "log"
++    "os"
++    "strings"
++    "time"
++)
++
++type ServiceAccountKey struct {
++    KeyID      string `json:"key_id"`
++    SubAccount string `json:"sub_account"`
++    PrivateKey string `json:"private_key"`
++}
++
++func main() {
++    // 替换为实际JSON文件路径，此处以本文件同级目录为例
++    signedToken, err := generateJWTToken("private.json")
++    if err != nil {
++        log.Fatalf("Failed to generate JWT token: %v", err)
++    }
++
++    // signedToken为鉴权令牌，调用推送服务REST API时放在Authorization头部来进行鉴权。
++    sendMessage(signedToken)
++}
++
++func sendMessage(token string) {
++    // 自行实现业务流程
++}
++
++func generateJWTToken(keyFile string) (string, error) {
++    saKey, err := loadServiceAccountKey(keyFile)
++    if err != nil {
++        return "", err
++    }
++
++    formattedPrivateKey, err := formatPrivateKey(saKey.PrivateKey)
++    if err != nil {
++        return "", err
++    }
++
++    privateKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(formattedPrivateKey))
++    if err != nil {
++        return "", fmt.Errorf("failed to parse private key: %w", err)
++    }
++
++    token, err := buildJWTToken(saKey.KeyID, saKey.SubAccount)
++    if err != nil {
++        return "", err
++    }
++
++    return token.SignedString(privateKey)
++}
++
++// buildJWTToken 构造 JWT token 对象
++func buildJWTToken(keyID, subAccount string) (*jwt.Token, error) {
++    now := time.Now().UTC()
++    iat := now.Unix()
++    exp := iat + 3600 // token 过期时间：一小时后
++
++    claims := jwt.MapClaims{
++        // 实际开发时请将公网地址存储在配置文件或数据库
++        "aud": "https://oauth-login.cloud.huawei.com/oauth2/v3/token",
++        "iss": subAccount,
++        "exp": exp,
++        "iat": iat,
++    }
++
++    token := jwt.NewWithClaims(jwt.SigningMethodPS256, claims)
++
++    // 设置 header
++    token.Header["kid"] = keyID
++    token.Header["typ"] = "JWT"
++    token.Header["alg"] = "PS256"
++
++    return token, nil
++}
++
++// loadServiceAccountKey 从 JSON 文件加载服务账号密钥
++func loadServiceAccountKey(filename string) (*ServiceAccountKey, error) {
++    data, err := os.ReadFile(filename)
++    if err != nil {
++        return nil, fmt.Errorf("failed to read key file: %w", err)
++    }
++
++    var saKey ServiceAccountKey
++    if err := json.Unmarshal(data, &saKey); err != nil {
++        return nil, fmt.Errorf("failed to parse key file: %w", err)
++    }
++
++    if saKey.KeyID == "" || saKey.SubAccount == "" || saKey.PrivateKey == "" {
++        return nil, errors.New("invalid service account key file: missing required fields")
++    }
++
++    return &saKey, nil
++}
++
++// formatPrivateKey 格式化私钥字符串为 PEM 格式
++func formatPrivateKey(privateKeyStr string) (string, error) {
++    trimmed := strings.TrimSpace(privateKeyStr)
++
++    // 如果已经是 PEM 格式，则直接返回
++    if strings.HasPrefix(trimmed, "-----BEGIN PRIVATE KEY-----") &&
++        strings.HasSuffix(trimmed, "-----END PRIVATE KEY-----") {
++        return trimmed, nil
++    }
++
++    block, _ := pem.Decode([]byte(trimmed))
++    if block == nil {
++        return "", errors.New("failed to decode PEM block")
++    }
++
++    pemBytes := pem.EncodeToMemory(block)
++    if pemBytes == nil {
++        return "", errors.New("failed to encode private key to PEM format")
++    }
++
++    return string(pemBytes), nil
++}
+\ No newline at end of file
+diff --git a/HarmonyOS-PushKit/消息频控-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md b/HarmonyOS-PushKit/消息频控-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..e4b6f88459f9c99ac4fb501b450f7f50781a2d0c
+--- /dev/null
++++ b/HarmonyOS-PushKit/消息频控-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+@@ -0,0 +1,88 @@
++Push Kit消息频控包括场景化消息频控、设备消息频控、测试消息频控和消息推送速率管控，当超过了某个频控规则限制会返回对应的[回执状态码](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-msg-receipt#section19100519195717)。
++
++说明
++
++消息频控的数量是指应用发起消息推送请求的数量，无论设备是否成功展示消息都会增加计数，如果消息未按预期展示，建议不要频繁发起消息推送请求，请先进行[问题排查](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-faq-2)。
++
++## 场景化消息频控
++
++为了给用户提供更好的体验，营造清朗网络空间，华为推送服务根据不同的[推送场景](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-scenes)，设置了多条频控规则。
++
++若场景化消息超出对应的频控规则限制，推送服务将向您的回执服务器返回**256结果码**，详情请参考[回执状态码](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-msg-receipt#section19100519195717)。
++
++具体频控规则见下表：
++
++展开
++
++| 
++场景
++
++ | 
++
++频控规则
++
++ |
++| --- | --- |
++| 
++
++通知消息
++
++ | 
++
++1.应用违规处罚时，按照处罚频次限制，参考[通知违规处罚标准](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-punishment-standards)。
++
++2.消息为资讯营销类（[category](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section17371529101117)取值为MARKETING）时，按照应用营销消息频次限制，参考[通知消息推送数量管理规则](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-apply-right#section1128516504398)（若未[开通消息自分类权益](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-send-alert#section15809122792917)，则推送的通知消息默认为资讯营销类消息）。
++
++ |
++| 
++
++卡片刷新消息
++
++ | 
++
++按照应用下单个卡片限制刷新频次。
++
++默认频次：应用每个设备单个卡片已上架为2条/天，未上架为5条/天。
++
++ |
++| 
++
++实况窗消息
++
++ | 
++
++单个实况窗消息每个设备每5分钟最多更新10次，每小时最多更新60次。
++
++出行打车与赛事比分场景，5分钟最多更新30次，每小时最多更新180次。
++
++ |
++
++## 设备消息频控
++
++除了单个场景的次数限制外，推送服务还对单个设备下的单个应用一天内所能接收的所有消息总量进行了限制，系统会根据现网使用场景和流量进行管控，不合理的使用场景系统会进行频控，并且推送服务将向您的回执服务器返回**102结果码**，详情请参考[回执状态码](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-msg-receipt#section19100519195717)。
++
++## 测试消息频控
++
++为了方便开发者测试消息，您可以设置pushOptions.[testMessage](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section418321011212)为true，发送测试消息。
++
++每个项目每日可推送总共1000条测试消息（非设备级，所有设备共用1000条）且不受[场景化消息频控](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-msg-freq-control#section551882820368)。若项目当天已推送超过1000条测试消息，则会进行消息限流（限流直到次日后恢复），并且推送服务将向您的回执服务器返回**256结果码**，详情请参考[回执状态码](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-msg-receipt#section19100519195717)。
++
++## 消息推送速率管控
++
++消息推送速率是指应用QPS（每秒推送的设备个数），当应用QPS超过阈值时请求会返回[HTTP响应码](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-response#section4405122736) 503。应用QPS与应用类型相关，并且随着应用在华为终端上的月活跃用户人数增加而增长，您可以登录[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)查询到应用QPS阈值，查询路径：“开发与服务 > 推送服务 > 配置 > 选择应用”，选择需要查看的应用，下方即可查到对应的QPS阈值。
++
++![](https://alliance-communityfile-drcn.dbankcdn.com/FileServer/getFile/cmtyPub/011/111/111/0000000000011111111.20260213154240.90491323867492354916023233536356:50001231000000:2800:AFE1597A6673E9650E53F1D2F9ED646DE46BDE79152A786A76E5EDE562E3C0B8.png)
++
++说明
++
+++   全网流量较高时，会出现系统级流控，请求也会返回[HTTP响应码](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-response#section4405122736) 503。
++
++相关推荐
++
++意见反馈
++
++以上内容对您是否有帮助？
++
++意见反馈
++
++如果您有其他疑问，您也可以通过开发者社区问答频道来和我们联系探讨。
+\ No newline at end of file
+diff --git a/HarmonyOS-PushKit/请求体参数说明-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md b/HarmonyOS-PushKit/请求体参数说明-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..44271357a3761883bfa91cc2ca573933560b281c
+--- /dev/null
++++ b/HarmonyOS-PushKit/请求体参数说明-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+@@ -0,0 +1,259 @@
++type
++
++是
++
++Integer
++
++布局类型：
++
+++   3：进度可视化类型，适用于外卖配送、生鲜配送、车辆接驾进展等涉及进度节点显示的活动。
+++   4：强调文本模板类型，适用于展示取餐码、取件码、车牌号等关键信息的活动。
+++   5：左右文本模板类型，适用于高铁、火车、航班等涉及展示起点、终点的活动。
+++   7：赛事类型，适用于体育赛事比分场景、游戏赛事比分场景等。
++
++keywords
++
++否
++
++Map<String, String>
++
++实况窗关键词，operation为0且event为如下场景时，必填。
++
+++   event为FLIGHT时，仅有**flightNo**一个keyword，表示航班号，占位符格式：{{flightNo}}。
++    
++    示例：
++    
++    收起
++    
++    自动换行
++    
++    深色代码主题
++    
++    复制
++    
+++   event为TRAIN时，仅有**trainNo**一个keyword，表示火车车次，占位符格式：{{trainNo}}。
++    
++    示例：
++    
++    收起
++    
++    自动换行
++    
++    深色代码主题
++    
++    复制
++    
++
++消息体中占位符的使用，参见[支持携带占位符的字段](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section111894703518)。
++
++additionalText
++
++否
++
++String
++
++提示信息/免责声明。仅在NotificationData.type=5时可用。（注意消息体大小限制，详情参见[使用约束](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-intro#section114731924131418)）
++
++keepTime
++
++否
++
++Long
++
++实况窗通知存档期，在结束实况窗通知后，通知仍保留在通知中心的时长，**默认****0****不保留**，最多设置1小时，单位为秒（s）。
++
++存档期时间以结束实况窗消息中携带的此字段数据为准，存档期期间不支持再次更新或结束通知。
++
++contentTitle
++
++否
++
++String
++
++通知标题，长度最大1024字符。
++
++operation为0时必填，且不能为空字符串。
++
++contentText
++
++否
++
++Array \[[RichText](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section33109121415) Object\]
++
++通知内容，由多段富文本RichText组成，文本长度总和不超过1024字符，若设置文本颜色，只允许设置为同一种颜色。
++
++operation为0时必填，且不能为空Array。
++
++richProgress
++
++否
++
++[RichProgress](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section3869231875) Object
++
++丰富进度信息，type为3时必填，具体字段请参见[RichProgress](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section3869231875)结构体。
++
++singleTextBlock
++
++否
++
++[SingleTextBlock](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section4853202219519) Object
++
++强调文本模板样式中，强调的文本块，type为4时必填，默认占据左侧扩展区，具体字段请参见[SingleTextBlock](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section4853202219519)结构体。
++
++firstTextBlock
++
++否
++
++[FirstTextBlock](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section194733293615) Object
++
++多文本块布局中的左侧文本块，type为5时必填，详情可参见[FirstTextBlock](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section194733293615)结构体。
++
++lastTextBlock
++
++否
++
++[LastTextBlock](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1714025575) Object
++
++多文本块布局中的右侧文本块，type为5时必填，详情可参见[LastTextBlock](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1714025575)结构体。
++
++displayHorizontalLine
++
++否
++
++Boolean
++
++是否显示扩展区域的分割线，不设置默认显示分割线。
++
+++   true：显示
+++   false：不显示
++
++说明
++
++当type为5或7时才会显示分割线**。**
++
++spaceIcon
++
++否
++
++String
++
++间隔图标，本地资源，type为5时占据扩展区中间。
++
++operation为0，type为5，spaceType未传或者spaceType为0时必填，且不能为空字符串。
++
++取值为在指定路径下的文件名。
++
++示例：图标文件“icon.png”存放在应用的“/resources/rawfile”路径下，则取值为“icon.png”。
++
++spaceText
++
++否
++
++String
++
++间隔文本，type为5时占据扩展区中间。
++
++operation为0，type为5，spaceType为1时必填，且不能为空字符串。（注意消息体大小限制，详情参见[使用约束](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-intro#section114731924131418)）
++
++style
++
++否
++
++Integer
++
++左右文本样式类型
++
++0：强调型
++
++1：均衡型
++
++说明
++
++创建时未传style字段将使用强调型展示。
++
++spaceType
++
++否
++
++Integer
++
++间隔类型
++
++0：使用图标
++
++1：使用文本
++
++说明
++
++创建时未传spaceType字段将使用图标展示。
++
++extend
++
++否
++
++[Extend](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section15169131522812) Object
++
++辅助区样式，无更新时可不携带。具体字段请参见[Extend](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section15169131522812)结构体。
++
++说明
++
+++   更新type类型为新布局时，需重新携带本字段。
+++   刷新实况窗通知内容时，**辅助区显示类型为图片且图片路径填写错误会导致刷新内容失败**。
++
++game
++
++否
++
++[Game](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1134158205816) Object
++
++赛事信息扩展区，type为7时必填，具体字段请参见[Game](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1134158205816)结构体。
++
++descPic
++
++否
++
++String
++
++扩展区域描述图片，默认不显示，当type为4时且传值会占据右侧扩展区。不携带时系统显示时采用上次刷新的图像。
++
++operation为0且type为4时必填，且不能为空字符串。
++
++取值为在指定路径下的文件名。
++
++示例：图标文件“icon.png”存放在应用的“/resources/rawfile”路径下，则取值为“icon.png”
++
++clickAction
++
++是
++
++[ClickAction](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section152462191216) Object
++
++消息点击行为，具体字段请参见[ClickAction](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section152462191216)结构体。
++
++lockScreen
++
++否
++
++[LiveViewLockScreen](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1786105519115) Object
++
++锁屏沉浸实况窗相关字段，具体字段请参见[LiveViewLockScreen](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1786105519115)结构体。
++
++weather
++
++否
++
++[Weather](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section831712212426) Object
++
++传入天气信息结构体。需要同时传入天气类型、天气位置类型与最高最低温度参数，才会在卡片上展示天气。仅支持左右文本模板（即type为5）。
++
++当传入天气类型为雨、雪特殊天气，且同时传入实况窗卡片的背景氛围类型参数backgroundType（合法值参见Live View Kit [BackgroundType](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/liveview-liveviewmanager#section15834105743213)枚举值）为赏月航班或夕阳航班对应的值时，卡片上优先展示天气背景，其余非特殊天气在卡片上优先展示赏月航班或夕阳航班背景氛围。
++
++backgroundType
++
++否
++
++Integer
++
++表示实况窗卡片的背景氛围类型，仅支持左右文本模板（即type为5），合法值参见Live View Kit [BackgroundType](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/liveview-liveviewmanager#section15834105743213)枚举值。
++
++当传入实况窗卡片的背景氛围类型参数为赏月航班或夕阳航班对应的值时，且同时传入天气类型（[Weather](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section831712212426)）为雨、雪特殊天气，卡片上优先展示天气背景，其余非特殊天气在卡片上优先展示赏月航班或夕阳航班背景氛围。
+\ No newline at end of file
+diff --git a/HarmonyOS-PushKit/请求体结构说明-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md b/HarmonyOS-PushKit/请求体结构说明-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2dc8adddaf15bac3bfb6c96d5a08a8d1288a2336
+--- /dev/null
++++ b/HarmonyOS-PushKit/请求体结构说明-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+@@ -0,0 +1,165 @@
++## 接口原型
++
++<table><tbody><tr><th class="firstcol" id="mcps1.3.1.2.1.3.1.1"><p>承载协议</p></th><td class="cellrowborder"><p>HTTPS POST</p></td></tr><tr><th class="firstcol" id="mcps1.3.1.2.1.3.2.1"><p>接口方向</p></th><td class="cellrowborder"><p>开发者服务器 -&gt; 华为Push服务器</p></td></tr><tr><th class="firstcol" id="mcps1.3.1.2.1.3.3.1"><p>接口URL</p></th><td class="cellrowborder"><p>https://push-api.cloud.huawei.com/v3/<strong>[projectId]</strong>/messages:send</p><div class="hw-editor-tip info"><p>说明</p><p><strong>[projectId]</strong>：项目ID，登录<a href="https://developer.huawei.com/consumer/cn/service/josp/agc/index.html" target="_blank">AppGallery Connect</a>网站，选择“开发与服务”，在项目列表中选择对应的项目，左侧导航栏选择“项目设置”，在该页面中获取。</p></div></td></tr><tr><th class="firstcol" id="mcps1.3.1.2.1.3.4.1"><p>数据格式</p></th><td class="cellrowborder"><p>Content-Type: application/json</p></td></tr></tbody></table>
++
++## Request Header
++
++展开
++
++| 
++参数
++
++ | 
++
++取值描述
++
++ | 
++
++样例
++
++ |
++| --- | --- | --- |
++| 
++
++Authorization
++
++ | 
++
++鉴权方式：**JWT方式**。
++
++注意
++
++HarmonyOS 5及以上系统版本推送不再支持OAuth 2.0开放鉴权方式。
++
++详情参见[基于服务账号生成鉴权令牌](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token)。
++
++说明
++
++建议JWT令牌过期时间设置为3600秒，有效期内可以复用。
++
++Bearer后面拼接空格，再拼接获取的鉴权信息。
++
++
++
++
++
++ | 
++
++Bearer eyJr\*\*\*\*\*OiIx---\*\*\*\*.eyJh\*\*\*\*\*iJodHR--\*\*\*.QRod\*\*\*\*\*4Gp---\*\*\*\*
++
++ |
++| 
++
++push-type
++
++ | 
++
++消息类型，取值如下：
++
++0：Alert消息（通知消息）
++
++1：卡片刷新消息
++
++2：语音播报消息
++
++6：后台消息
++
++7：实况窗消息
++
++10：应用内通话消息
++
++ | 
++
++0
++
++ |
++
++## Request Body
++
++展开
++
++| 
++参数
++
++ | 
++
++是否必选
++
++ | 
++
++参数类型
++
++ | 
++
++描述
++
++ |
++| --- | --- | --- | --- |
++| 
++
++payload
++
++ | 
++
++是
++
++ | 
++
++Object
++
++ | 
++
++推送消息结构体，不同的push-type场景拥有不同的payload定义：
++
+++   0：[AlertPayload](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1152516418157) 通知消息
+++   1：[FormUpdatePayload](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section6471174713249) 卡片刷新消息
+++   2：[ExtensionPayload](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section161192514234) 语音播报消息
+++   6：[BackgroundPayload](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section056120245274) 后台消息
+++   7：[LiveViewPayload](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section66881469306) 实况窗消息
+++   10：[VoIPCallPayload](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section146341550144011) 应用内通话消息
++
++ |
++| 
++
++pushOptions
++
++ | 
++
++否
++
++ | 
++
++Object
++
++ | 
++
++发送控制参数，详情请参见[pushOptions](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section418321011212)的定义。
++
++ |
++| 
++
++target
++
++ | 
++
++是
++
++ | 
++
++Object
++
++ | 
++
++发送目标，详情请参见[target](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-param#section1344624991218)的定义。
++
++ |
++
++相关推荐
++
++意见反馈
++
++以上内容对您是否有帮助？
++
++意见反馈
++
++如果您有其他疑问，您也可以通过开发者社区问答频道来和我们联系探讨。
+\ No newline at end of file
+diff --git a/HarmonyOS-PushKit/请求示例-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md b/HarmonyOS-PushKit/请求示例-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3776b459e434b41bfbe6cf07288fd102ebbc4342
+--- /dev/null
++++ b/HarmonyOS-PushKit/请求示例-场景化消息-REST_API-Push_Kit（推送服务）-应用服务.md
+@@ -0,0 +1,458 @@
++请求示例
++更新时间: 2026-01-14 17:55
++通知消息
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type:0
++ 
++// Request Body
++{ 
++  "payload": { 
++    "notification": { 
++      "category": "xxxxxx", // category替换为实际通知消息类型
++      "title": "普通标题", 
++      "body": "普通内容", 
++      "clickAction": { 
++        "actionType": 0
++      },
++      "style": 0, 
++      "image":"https://lf*******246.png" 
++    } 
++  }, 
++  "target": { 
++    "token": ["MAAALgE4G98BAAAAst*******jg"] 
++  } 
++}
++应用在前台时接收通知消息
++应用只在后台展示通知消息；应用在前台时，通知消息将不会展示，但可以接收通知消息后自行完成业务处理，详情请参见应用在前台时处理通知消息。
++
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type: 0
++
++// Request Body
++{
++  "payload": {
++    "notification": {
++      "category": "MARKETING",
++      "title": "普通通知标题",
++      "body": "普通通知内容",
++      "clickAction": {
++        "actionType": 0
++      },
++      "foregroundShow": false  // 设置为false则应用在前台时不会展示通知消息，默认为true表示前后台都展示
++    }
++  },
++  "target": {
++    "token": ["MAMzLg**********lPW"]
++  },
++  "pushOptions": {
++    "testMessage": true,
++    "ttl": 86400
++  }
++}
++卡片刷新消息
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type:1
++ 
++// Request Body
++{ 
++  "payload": { 
++    "formData": { 
++      "123": 96, 
++      "class": "123" 
++    }, 
++    "version": 922337203, 
++    "images": [ 
++      { 
++        "keyName": "hello", 
++        "url": "https://xxx.png", 
++        "require": 1 
++      } 
++    ], 
++    "formId": 0, 
++    "moduleName": "testName", 
++    "formName": "testFormName", 
++    "abilityName": "testAbilityName"      
++  }, 
++  "pushOptions": { 
++    "biTag": "this is bi", 
++    "ttl": 666 
++  }, 
++  "target": { 
++    "token": [ 
++      "MAAALgE4G98BAAAAst************ttQd4Tw" 
++    ]   
++  } 
++}
++语音播报消息
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type:2
++ 
++// Request Body
++{ 
++  "payload": { 
++    "extraData": "Extension extra data", 
++    "notification": { 
++      "category": "PLAY_VOICE", 
++      "title": "普通标题", 
++      "body": "普通内容", 
++      "clickAction": { 
++        "actionType": 0
++      }, 
++      "style": 0, 
++      "image":"https://lf*******246.png" 
++    } 
++  }, 
++  "target": { 
++    "token": ["MAAALgE4G98BAAAAst*******jg"] 
++  } 
++}
++后台消息
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type:6
++ 
++// Request Body
++{ 
++  "payload": { 
++    "extraData": "携带的数据" 
++  }, 
++  "target": { 
++    "token": ["MAAALgE4G98BAAAAst************jq"] 
++  } 
++}
++创建实况窗消息
++航班场景（event为FLIGHT）
++计划出发，使用左右文本模板。
++
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++ 
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---**** 
++push-type:7 
++
++// Request Body
++{
++  "pushOptions": {
++    "ttl": 1000,
++    "biTag": "biTag"
++  },
++  "payload": {
++    "activityId": 1,
++    "operation": 0,
++    "event": "FLIGHT",
++    "status": "DEPART", // 计划出发
++    "activityData": {
++      "notificationData": {
++        "keywords": {
++          "flightNo": "MU1471"
++        },
++        "type": 5,
++        "contentTitle": "航班{{status}}", // 航班计划出发
++        "contentText": [
++          {
++            "text": "航班号："
++          },
++          {
++            "text": "{{flightNo}}", // MU1471
++            "foregroundColor": "#FF317AF7"
++          }
++        ],
++        "clickAction": {
++          "actionType": 0
++        },
++        "firstTextBlock": {
++          "firstLine": "12:00",
++          "secondLine": "上海虹桥"
++        },
++        "lastTextBlock": {
++          "firstLine": "14:20",
++          "secondLine": "成都天府"
++        },
++        "displayHorizontalLine": true,
++        "spaceIcon": "space.png", // 取值为“/resources/rawfile”路径下的文件名
++        "extend": {
++          "type": 3,
++          "pic": "flight.png", // 取值为“/resources/rawfile”路径下的文件名
++          "clickAction": {
++            "actionType": 1,
++            "action": "xxxxxxx"
++          }
++        }
++      },
++      "capsuleData": {
++        "type": 1,
++        "status": 1,
++        "icon": "icon.svg", // 取值为“/resources/rawfile”路径下的文件名
++        "bgColor": "#FF317AF7",
++        "remind": "EXPAND",
++        "title": "即将出发",
++        "content": "请尽快前往机场"
++      }
++    }
++  },
++  "target": {
++    "token": [
++      "MAAALgE4G98BAAAAst************jq"
++    ]
++  }
++}
++出行打车场景（event为TAXI）
++司机正在赶来，使用进度可视化模板。
++
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type:7
++
++// Request Body
++{
++  "pushOptions": {
++    "ttl": 1000,
++    "biTag": "biTag"
++  },
++  "payload": {
++    "activityId": 2,
++    "operation": 0,
++    "event": "TAXI",
++    "status": "DRIVER_ON_THE_WAY", // 司机正在赶来
++    "activityData": {
++      "notificationData": {
++        "type": 3,       
++        "contentTitle": "{{status}}", // 司机正在赶来
++        "contentText": [
++          {
++            "text": "距您"
++          },
++          {
++            "text": "1.2公里",
++            "foregroundColor": "#FF317AF7"
++          },
++          {
++            "text": " | "
++          },
++          {
++            "text": "5分钟",
++            "foregroundColor": "#FF317AF7"
++          }
++        ],
++        "clickAction": {
++          "actionType": 1, // 打开应用自定义页面
++          "action": "xxxxxx" // 应用内置页面ability对应的action
++        },
++        "richProgress": {
++          "type": 0,
++          "nodeIcons": ["icon1.png", "icon2.png", "icon3.png"], // 取值为“/resources/rawfile”路径下的文件名
++          "indicatorIcon": "taxi.png", // 取值为“/resources/rawfile”路径下的文件名
++          "progress": 40,
++          "indicatorType": 1,
++          "color": "#FF317AF7",
++          "bgColor": "#19000000"
++        },
++        "extend": {
++          "type": 3,
++          "pic": "phone.png", // 取值为“/resources/rawfile”路径下的文件名
++          "clickAction": {
++            "actionType": 5, // 打开拨号界面
++            "data": {
++              "tel": "138xxxxxxxx" // 通过tel字段携带电话号码
++            }
++          }
++        }
++      },
++      "capsuleData": {
++        "type": 1,
++        "status": 1,
++        "icon": "icon.svg", // 取值为“/resources/rawfile”路径下的文件名
++        "bgColor": "#FF317AF7",
++        "remind": "EXPAND",
++        "title": "接驾中",
++        "content": "预计5分钟"
++      }
++    }
++  },
++  "target": {
++    "token": [
++      "MAAALgE4G98BAAAAst************jq"
++    ]
++  }
++}
++高铁/火车场景（event为TRAIN）
++计划出发，使用左右文本模板。
++
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---****
++push-type:7
++
++// Request Body
++{
++  "pushOptions": {
++    "ttl": 1000,
++    "biTag": "biTag"
++  },
++  "payload": {
++    "activityId": 3,
++    "operation": 0,
++    "event": "TRAIN",
++    "status": "DEPART", // 计划出发
++    "title": "列车即将出发",
++    "content": "请尽快去高铁站",
++    "activityData": {
++      "notificationData": {
++        "keywords": {
++          "trainNo": "G1406"
++        },
++        "type": 5,        
++        "contentTitle": "列车{{status}}", // 列车计划出发
++        "contentText": [
++          {
++            "text": "车次："
++          },
++          {
++            "text": "{{trainNo}}", // G1406
++            "foregroundColor": "#FF317AF7"
++          }
++        ],
++        "clickAction": {
++          "actionType": 0
++        },
++        "firstTextBlock": {
++          "firstLine": "13:00",
++          "secondLine": "上海虹桥"
++        },
++        "lastTextBlock": {
++          "firstLine": "14:20",
++          "secondLine": "南京南"
++        },
++        "displayHorizontalLine": true,
++        "spaceIcon": "space.png", // 取值为“/resources/rawfile”路径下的文件名
++        "extend": {
++          "type": 3,
++          "pic": "train.png", // 取值为“/resources/rawfile”路径下的文件名
++          "clickAction": {
++            "actionType": 1,
++            "action": "xxxxxxx"
++          }
++        }
++      },
++      "capsuleData": {
++        "type": 1,
++        "status": 1,
++        "icon": "icon.svg", // 取值为“/resources/rawfile”路径下的文件名
++        "bgColor": "#FF317AF7",
++        "remind": "EXPAND",
++        "title": "即将出发",
++        "content": "请尽快去高铁站"
++      }
++    }
++  },
++  "target": {
++    "token": [
++      "MAAALgE4G98BAAAAst************jq"
++    ]
++  }
++}
++更新实况窗消息
++航班场景（event为FLIGHT）
++已值机，使用左右文本模板。
++
++// Request URL
++POST "https://push-api.cloud.huawei.com/v3/3158882***52863/messages:send"
++ 
++// Request Header
++Content-Type: application/json
++Authorization: Bearer eyJr*****OiIx---****.eyJh*****iJodHR--***.QRod*****4Gp---**** 
++push-type:7 
++
++// Request Body
++{
++  "pushOptions": {
++    "ttl": 1000,
++    "biTag": "biTag"
++  },
++  "payload": {
++    "activityId": 1,
++    "operation": 1,
++    "event": "FLIGHT",
++    "status": "CHECKED_IN", // 已值机
++    "version": 1,
++    "activityData": {
++      "notificationData": {
++        "keywords": {
++          "flightNo": "MU1471"
++        },
++        "type": 5,
++        "contentTitle": "登机口88",
++        "contentText": [
++          {
++            "text": "{{status}} | " // 已值机
++          },
++          {
++            "text": "{{flightNo}}", // MU1471
++            "foregroundColor": "#FF317AF7"
++          }
++        ],
++        "clickAction": {
++          "actionType": 0
++        },
++        "firstTextBlock": {
++          "firstLine": "12:00",
++          "secondLine": "上海虹桥"
++        },
++        "lastTextBlock": {
++          "firstLine": "14:20",
++          "secondLine": "成都天府"
++        },
++        "displayHorizontalLine": true,
++        "spaceIcon": "space.png", // 取值为“/resources/rawfile”路径下的文件名
++        "extend": {
++          "type": 3,
++          "pic": "flight.png", // 取值为“/resources/rawfile”路径下的文件名
++          "clickAction": {
++            "actionType": 1,
++            "action": "xxxxxxx"
++          }
++        }
++      },
++      "capsuleData": {
++        "type": 1,
++        "status": 1,
++        "icon": "icon.svg", // 取值为“/resources/rawfile”路径下的文件名
++        "bgColor": "#FF317AF7",
++        "remind": "EXPAND",
++        "title": "登机口88",
++        "content": "请尽快完成安检"
++      }
++   
+\ No newline at end of file
+diff --git a/README.md b/README.md
+index a551b7b9d2a636488ee11a7147bd104c492b1695..61c845b7a5556851d3463e7f49b62ed626bff24c 100644
+--- a/README.md
++++ b/README.md
+@@ -1,72 +1,330 @@
+-# Bark
++# Bark Server
+ 
+ <img src="https://wx3.sinaimg.cn/mw690/0060lm7Tly1g0nfnjjxbbj30sg0sg757.jpg" width=200px height=200px />
+ 
+-[Bark](https://github.com/Finb/Bark) is an iOS App which allows you to push customed notifications to your iPhone.
++[![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go)](https://golang.org)
++[![Docker Automated build](https://img.shields.io/docker/automated/finab/bark-server.svg)](https://hub.docker.com/r/finab/bark-server)
++[![Image Size](https://img.shields.io/docker/image-size/finab/bark-server?sort=date)](https://hub.docker.com/r/finab/bark-server)
++[![License](https://img.shields.io/github/license/finb/bark-server)](LICENSE)
+ 
+-## Installation
++[Shark](https://github.com/xiaobingtech/Shark) 是一个 鸿蒙 App，用于把自定义通知推送到 鸿蒙手机。本仓库是 Shark 的推送服务端实现，基于 Go + Fiber 构建，具有以下特性：
+ 
+-### For Docker User
++- **多平台推送支持**：同时支持 iOS APNs 和 HarmonyOS PushKit
++- **高性能**：基于 [Fiber](https://gofiber.io/) 框架，使用 fasthttp 引擎
++- **灵活存储**：支持 Bbolt（默认）、MySQL、环境变量三种存储模式
++- **API 兼容**：V1/V2 双版本 API 兼容，支持批量推送
++- **MCP 支持**：提供 MCP (Model Context Protocol) HTTP 端点，可与 AI 工具集成
++- **生产就绪**：内置优雅关停、健康检查、Basic Auth 认证
++- **容器化**：完整的 Docker/Kubernetes 部署支持
+ 
+-![Docker Automated build](https://img.shields.io/docker/automated/finab/bark-server.svg) ![Image Size](https://img.shields.io/docker/image-size/finab/bark-server?sort=date) ![License](https://img.shields.io/github/license/finb/bark-server)
++## 目录
+ 
+-The docker image is already available, you can use the following command to run the bark server:
++- [快速开始](#快速开始)
++- [配置参数](#配置参数)
++- [API 接口](#api-接口)
++- [部署方式](#部署方式)
++- [开发指南](#开发指南)
++- [项目结构](#项目结构)
+ 
+-``` sh
+-docker run -dt --name bark -p 8080:8080 -v `pwd`/bark-data:/data finab/bark-server
+-```
++## 快速开始
+ 
+-You can also use the GitHub Container Registry image:
++### Docker 部署（推荐）
+ 
+-``` sh
+-docker run -dt --name bark -p 8080:8080 -v `pwd`/bark-data:/data ghcr.io/finb/bark-server
++```sh
++# 单容器运行
++docker run -dt --name bark -p 8080:8080 -v `pwd`/bark-data:/data xiaobingtech/bark-server:latest
+ ```
+ 
+-If you use the docker-compose tool, you can copy docker-copose.yaml under this project to any directory and run it:
+-
+-``` sh
++```sh
++# Docker Compose 部署
+ mkdir bark-server && cd bark-server
+-curl -sL https://github.com/Finb/bark-server/raw/master/deploy/docker-compose.yaml > docker-compose.yaml
++curl -sL https://github.com/xiaobingtech/bark-server/raw/master/deploy/docker-compose.yaml > docker-compose.yaml
+ docker compose up -d
+ ```
+ 
+-### For General User 
++### 二进制运行
++
++```sh
++# 1. 从 releases 下载预编译版本
++# https://github.com/xiaobingtech/bark-server/releases
++
++# 2. 添加执行权限
++chmod +x bark-server
++
++# 3. 启动服务
++./bark-server --addr 0.0.0.0:8080 --data ./bark-data
++
++# 4. 验证服务
++curl localhost:8080/ping
++```
++
++## 配置参数
++
++| 参数 | 默认值 | 说明 |
++|------|--------|------|
++| `--addr` | `0.0.0.0:8080` | 监听地址 |
++| `--data` | `/data` | 数据存储目录（Bbolt 模式） |
++| `--dsn` | - | MySQL 连接字符串，格式：`user:pass@tcp(host)/dbname` |
++| `--serverless` | `false` | Serverless 模式，使用环境变量存储 |
++| `--user` | - | Basic Auth 用户名 |
++| `--password` | - | Basic Auth 密码 |
++| `--cert` | - | TLS 证书文件路径 |
++| `--key` | - | TLS 私钥文件路径 |
++| `--max-apns-client-count` | `10` | APNs 客户端连接池大小 |
++| `--max-batch-push-count` | `100` | 批量推送数量限制 |
++
++## API 接口
++
++### 健康检查
++
++| 端点 | 方法 | 说明 |
++|------|------|------|
++| `/` | GET | 健康检查 |
++| `/ping` | GET | 返回 `pong` |
++| `/healthz` | GET | 健康检查 |
++| `/info` | GET | 服务器版本信息 |
++
++### 设备注册
++
++| 端点 | 方法 | 说明 |
++|------|------|------|
++| `/register` | POST | 注册设备，返回 `device_key` |
++| `/register/:device_key` | GET | 检查设备是否已注册 |
++
++**注册请求示例：**
++```json
++{
++  "device_token": "xxxxxxxxxxxxxx",
++  "platform": "ios"  // 可选值: ios, harmony
++}
++```
++
++### 推送通知
++
++#### V2 API（推荐）
++
++```sh
++POST /push
++Content-Type: application/json
++
++{
++  "device_key": "your_device_key",
++  "title": "通知标题",
++  "body": "通知内容",
++  "sound": "bell",
++  "badge": 1,
++  "icon": "https://example.com/icon.png",
++  "group": "default",
++  "url": "https://example.com"
++}
++```
++
++#### V1 API（兼容）
++
++```sh
++# 基础推送
++GET /:device_key/:body
++
++# 带标题推送
++GET /:device_key/:title/:body
++
++# POST 表单推送
++POST /:device_key
++Content-Type: application/x-www-form-urlencoded
++
++title=标题&body=内容&sound=bell
++```
++
++#### 批量推送
++
++```sh
++POST /push
++Content-Type: application/json
++
++[
++  {"device_key": "key1", "title": "标题1", "body": "内容1"},
++  {"device_key": "key2", "title": "标题2", "body": "内容2"}
++]
++```
++
++### MCP 端点
+ 
+-- 1、Download precompiled binaries from the [releases](https://github.com/Finb/bark-server/releases) page
+-- 2、Add executable permissions to the bark-server binary: `chmod +x bark-server`
+-- 3、Start bark-server: `./bark-server --addr 0.0.0.0:8080 --data ./bark-data`
+-- 4、Test the server: `curl localhost:8080/ping`
++MCP (Model Context Protocol) 支持 AI 工具调用推送：
+ 
+-**Note: Bark-server uses the `/data` directory to store data by default. Make sure that bark-server has permission to write to the `/data` directory, otherwise use the `-d` option to change the directory.**
++| 端点 | 方法 | 说明 |
++|------|------|------|
++| `/mcp` | ALL | MCP 通用端点，需在参数中提供 `device_key` |
++| `/mcp/:device_key` | ALL | 设备专用端点 |
+ 
+-### For Developer
++详细文档请参考 [MCP.md](docs/MCP.md)。
+ 
+-Developers can compile this project by themselves, and the dependencies required for compilation:
++## 部署方式
+ 
+-- Golang 1.18+
+-- Go Mod Enabled(env `GO111MODULE=on`)
+-- Go Mod Proxy Enabled(env `GOPROXY=https://goproxy.cn`)
+-- [go-task](https://taskfile.dev/installation/) Installed
++### MySQL 模式
+ 
+-Run the following command to compile this project:
++适用于分布式部署场景：
+ 
+ ```sh
+-# Cross compile all platforms
++./bark-server --dsn=user:password@tcp(mysql-host:3306)/bark
++```
++
++### Kubernetes 部署
++
++提供完整的 Helm Chart：
++
++```sh
++cd deploy/helm-chart
++helm install bark-server . -n bark --create-namespace
++```
++
++### systemd 服务
++
++```sh
++# 复制服务文件
++sudo cp deploy/bark-server.service /etc/systemd/system/
++
++# 启动服务
++sudo systemctl daemon-reload
++sudo systemctl enable bark-server
++sudo systemctl start bark-server
++```
++
++## 开发指南
++
++### 环境要求
++
++- Go 1.23+
++- [go-task](https://taskfile.dev/installation/) 构建工具
++
++### 本地开发
++
++```sh
++# 克隆仓库
++git clone https://github.com/xiaobingtech/bark-server.git
++cd bark-server
++
++# 设置代理（可选）
++export GOPROXY=https://goproxy.cn,direct
++
++# 运行服务
++go run . --addr :8080 --data ./data
++
++# 运行测试
++go test -v
++```
++
++### 构建发布
++
++```sh
++# 安装 go-task
++# macOS: brew install go-task
++# Windows: scoop install task
++# Linux: sh -c "$(curl --location https://taskfile.dev/install.sh)"
++
++# 构建所有平台
+ task
+ 
+-# Compile the specified platform (please refer to Taskfile.yaml)
++# 构建特定平台
+ task linux_amd64
+ task linux_amd64_v3
++task darwin_arm64
++task windows_amd64.exe
+ ```
+ 
+-**Note: The linux amd64 v3 architecture was added in go 1.18, see [https://github.com/golang/go/wiki/MinimumRequirements#amd64](https://github.com/golang/go/wiki/MinimumRequirements#amd64)**
++### 支持的平台
++
++| OS | Architectures |
++|----|---------------|
++| Linux | 386, amd64, amd64_v2/v3/v4, arm, armv5/v6/v7/v8, mips, mips64 |
++| Windows | 386, amd64, amd64_v2/v3/v4 |
++| macOS | amd64, arm64 |
++| FreeBSD | amd64, arm64 |
++
++## 项目结构
++
++```
++bark-server/
++├── main.go                 # 程序入口
++├── router.go               # 路由注册框架
++├── route_auth.go           # Basic Auth 认证
++├── route_misc.go           # 健康检查等辅助接口
++├── route_register.go       # 设备注册接口
++├── route_push.go           # 推送接口（V1/V2/批量）
++├── route_mcp.go            # MCP HTTP 端点
++├── util.go                 # 工具函数
++│
++├── apns/                   # Apple Push Notification Service
++│   ├── apns.go             # APNs 客户端池与推送实现
++│   └── apns_certs.go       # APNs 私钥与根证书
++│
++├── database/               # 数据库抽象层
++│   ├── database.go         # 数据库接口定义
++│   ├── bbolt.go            # Bbolt 嵌入式数据库
++│   ├── mysql.go            # MySQL 实现
++│   ├── membase.go          # 内存数据库（测试用）
++│   └── envbase.go          # Serverless 环境变量存储
++│
++├── harmony/                # HarmonyOS 推送支持
++│   └── harmony.go          # 华为 PushKit 推送实现
++│
++├── deploy/                 # 部署相关文件
++│   ├── Dockerfile
++│   ├── docker-compose.yaml
++│   ├── entrypoint.sh
++│   ├── bark-server.service
++│   └── helm-chart/         # Kubernetes Helm Chart
++│
++├── docs/                   # 文档
++│   ├── API_V2.md           # V2 API 详细文档
++│   └── MCP.md              # MCP 说明文档
++│
++└── .github/workflows/      # GitHub Actions CI/CD
++    └── ci.yaml             # 自动构建推送 Docker 镜像
++```
++
++## 技术栈
++
++| 组件 | 技术 |
++|------|------|
++| Web 框架 | [Fiber v2](https://gofiber.io/) |
++| APNs 客户端 | [apns2](https://github.com/sideshow/apns2) |
++| MCP 协议 | [mcp-go](https://github.com/mark3labs/mcp-go) |
++| 嵌入式数据库 | [Bbolt](https://github.com/etcd-io/bbolt) |
++| MySQL 驱动 | [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql) |
++| CLI 框架 | [urfave/cli](https://github.com/urfave/cli) |
++| JSON 编解码 | [json-iterator](https://github.com/json-iterator/go) |
++
++## 工作流程
++
++```
++┌─────────────┐     ┌─────────────┐     ┌─────────────┐
++│   Client    │────▶│  Bark Server│────▶│  APNs/PushKit│
++│  (Bark App) │     │   (Go+Fiber)│     │   (Apple/HW) │
++└─────────────┘     └─────────────┘     └─────────────┘
++                           │
++                           ▼
++                    ┌─────────────┐
++                    │  Database   │
++                    │ (Bbolt/MySQL)│
++                    └─────────────┘
++```
++
++1. **启动**：解析命令行参数，创建 Fiber 实例，初始化数据库
++2. **认证**：可选启用 Basic Auth 中间件
++3. **注册**：设备通过 `/register` 注册，获取 `device_key`
++4. **推送**：通过 `/push` 或兼容路由发送通知，查询 `device_token` 并调用 APNs/PushKit
++5. **MCP**：AI 工具通过 `/mcp` 端点调用推送功能
++6. **关停**：优雅关闭 Fiber 与数据库连接
++
++## 文档
+ 
+-### Use MySQL instead of Bbolt
++- [API V2 文档](docs/API_V2.md)
++- [MCP 集成文档](docs/MCP.md)
+ 
+-Just run the server with `-dsn=user:pass@tcp(mysql_host)/bark`, it will use MySQL instead of file database Bbolt
++## 相关项目
+ 
+-## Others
++- [Shark HarmonyOS App](https://github.com/xiaobingtech/Shark) - HarmonyOS 客户端
+ 
+-* [API_V2.md](docs/API_V2.md).
+-* [MCP.md](docs/MCP.md).
++## License
+ 
++[MIT License](LICENSE)
+diff --git a/deploy/docker-compose.yaml b/deploy/docker-compose.yaml
+index 70133386453f6c9444c4bcc69efd01bdb5b42297..cd341e597911314217350d160ab5595b0c79115e 100644
+--- a/deploy/docker-compose.yaml
++++ b/deploy/docker-compose.yaml
+@@ -1,10 +1,10 @@
+ version: '3.8'
+ services:
+   bark-server:
+-    image: finab/bark-server
+     container_name: bark-server
++    image: xiaobingtech/bark-server:latest
+     restart: always
+     volumes:
+-      - ./data:/data
++      - ./bark-data:/data
+     ports:
+       - "8080:8080"
+\ No newline at end of file
+diff --git a/docs/API_V2.md b/docs/API_V2.md
+index 15f3b3437eb4900be0610ff0146866ce53485453..3592fc297dc9ba3078957cb842cc8dfe1f716da2 100644
+--- a/docs/API_V2.md
++++ b/docs/API_V2.md
+@@ -6,13 +6,22 @@ the V2 version.**
+ 
+ - [API V2](#api-v2)
+     * [Push](#push)
++        + [Compatibility Endpoints](#compatibility-endpoints)
+         + [curl](#curl)
+         + [golang](#golang)
+         + [python](#python)
+         + [java](#java)
+         + [nodejs](#nodejs)
+         + [php](#php)
++    * [Register](#register)
++        + [Register Device](#register-device)
++        + [Register Check](#register-check)
++        + [Register Compatibility](#register-compatibility)
++    * [MCP](#mcp)
++        + [Generic Endpoint](#generic-endpoint)
++        + [Device Specific Endpoint](#device-specific-endpoint)
+     * [Misc](#misc)
++        + [Root](#root)
+         + [Ping](#ping)
+         + [Healthz](#healthz)
+         + [Info](#info)
+@@ -41,6 +50,19 @@ the V2 version.**
+ | url (optional) | string | Url that will jump when click notification |
+ | action (optional) | string | Set to "none", tap notifications do nothing |
+ 
++### Compatibility Endpoints
++
++The following endpoints are provided for V1 compatibility and accept parameters via URL path, query string, form, or multipart form data:
++
++- `GET /:device_key`
++- `POST /:device_key`
++- `GET /:device_key/:body`
++- `POST /:device_key/:body`
++- `GET /:device_key/:title/:body`
++- `POST /:device_key/:title/:body`
++- `GET /:device_key/:title/:subtitle/:body`
++- `POST /:device_key/:title/:subtitle/:body`
++
+ ### curl
+ 
+ ```sh
+@@ -265,8 +287,59 @@ curl_close($curl);
+ echo $response;
+ ```
+ 
++## Register
++
++| Field | Type | Description |
++| ----- | ---- | ----------- |
++| device_key (optional) | string | Device key. If empty, server generates a new key |
++| device_token | string | Device token. Required |
++| platform (optional) | string | Platform identifier, e.g. `harmony`, `harmonyos`, `hmos` |
++| key (optional) | string | V1 compatibility for device_key |
++| devicetoken (optional) | string | V1 compatibility for device_token |
++
++### Register Device
++
++```sh
++curl -X "POST" "http://127.0.0.1:8080/register" \
++     -H 'Content-Type: application/json; charset=utf-8' \
++     -d $'{
++  "device_token": "xxxx",
++  "platform": "ios"
++}'
++```
++
++### Register Check
++
++```sh
++curl "http://127.0.0.1:8080/register/{device_key}"
++```
++
++### Register Compatibility
++
++```sh
++curl "http://127.0.0.1:8080/register?devicetoken=xxxx&key=yyyy"
++```
++
++## MCP
++
++MCP endpoints provide a Streamable HTTP server for tool-based notification sending. For details on request and response formats, see [MCP.md](./MCP.md).
++
++### Generic Endpoint
++
++- `ALL /mcp`
++
++### Device Specific Endpoint
++
++- `ALL /mcp/:device_key`
++
+ ## Misc
+ 
++### Root
++
++```sh
++curl "http://127.0.0.1:8080/"
++```
++
+ ### Ping
+ 
+ ```sh
+diff --git a/harmony/harmony.go b/harmony/harmony.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..675995e6f0895dce9363d294c0bbd9eb8dd1ad58
+--- /dev/null
++++ b/harmony/harmony.go
+@@ -0,0 +1,485 @@
++package harmony
++
++import (
++	"bytes"
++	"crypto/rsa"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"runtime"
++	"strconv"
++	"strings"
++	"sync"
++	"time"
++
++	"github.com/golang-jwt/jwt/v4"
++	"github.com/mritd/logger"
++)
++
++const TokenPrefix = "harmony:"
++
++const (
++	harmonyProjectID  = "101653523863572770"
++	harmonyKeyID      = "1a2c9713eec4432e89527627edb93e98"
++	harmonySubAccount = "116892607"
++	harmonyTokenURI   = "https://oauth-login.cloud.huawei.com/oauth2/v3/token"
++	harmonyPrivateKey = `<REDACTED: embedded private key omitted>`
++)
++
++type PushMessage struct {
++	DeviceToken string
++	Title       string
++	Body        string
++	ExtParams   map[string]interface{}
++	IsDelete    bool
++}
++
++type serviceAccountKey struct {
++	ProjectID  string `json:"project_id"`
++	KeyID      string `json:"key_id"`
++	PrivateKey string `json:"private_key"`
++	SubAccount string `json:"sub_account"`
++	TokenURI   string `json:"token_uri"`
++}
++
++type jwtSupplier struct {
++	mu        sync.Mutex
++	token     string
++	expiresAt time.Time
++	sa        serviceAccountKey
++	key       *rsa.PrivateKey
++	duration  time.Duration
++}
++
++type client struct {
++	httpClient *http.Client
++	messageURL string
++	jwt        *jwtSupplier
++}
++
++type clickAction struct {
++	ActionType int `json:"actionType"`
++}
++
++type badge struct {
++	AddNum int `json:"addNum,omitempty"`
++	SetNum int `json:"setNum,omitempty"`
++}
++
++type notification struct {
++	Category       string      `json:"category,omitempty"`
++	Title          string      `json:"title,omitempty"`
++	Body           string      `json:"body,omitempty"`
++	ClickAction    clickAction `json:"clickAction"`
++	Style          int         `json:"style,omitempty"`
++	InboxContent   []string    `json:"inboxContent,omitempty"`
++	Badge          *badge      `json:"badge,omitempty"`
++	Image          string      `json:"image,omitempty"`
++	Sound          string      `json:"sound,omitempty"`
++	ForegroundShow *bool       `json:"foregroundShow,omitempty"`
++	ExtraData      interface{} `json:"extraData,omitempty"`
++}
++
++type alertPayload struct {
++	Notification notification `json:"notification"`
++}
++
++type backgroundPayload struct {
++	ExtraData string `json:"extraData"`
++}
++
++type pushOptions struct {
++	Ttl         int64 `json:"ttl,omitempty"`
++	TestMessage bool  `json:"testMessage,omitempty"`
++}
++
++type target struct {
++	Token []string `json:"token"`
++}
++
++type message struct {
++	Payload     interface{}  `json:"payload"`
++	Target      target       `json:"target"`
++	PushOptions *pushOptions `json:"pushOptions,omitempty"`
++}
++
++var (
++	clients       = make(chan *client, 1)
++	initialized   bool
++	messageURL    string
++	tokenSupplier *jwtSupplier
++)
++
++func Init(maxClientCount int, pushServerDomain string) error {
++	if maxClientCount < 1 {
++		return fmt.Errorf("invalid number of clients")
++	}
++	sa, err := loadServiceAccountKey()
++	if err != nil {
++		return err
++	}
++	if pushServerDomain == "" {
++		pushServerDomain = "push-api.cloud.huawei.com"
++	}
++	messageURL = fmt.Sprintf("https://%s/v3/%s/messages:send", pushServerDomain, sa.ProjectID)
++	tokenSupplier, err = newJWTSupplier(*sa, time.Hour)
++	if err != nil {
++		return err
++	}
++	clients = make(chan *client, maxClientCount)
++	for i := 0; i < min(runtime.NumCPU(), maxClientCount); i++ {
++		clients <- &client{
++			httpClient: &http.Client{
++				Timeout: 5 * time.Second,
++			},
++			messageURL: messageURL,
++			jwt:        tokenSupplier,
++		}
++	}
++	initialized = true
++	logger.Infof("init harmony client success, count=%d", min(runtime.NumCPU(), maxClientCount))
++	return nil
++}
++
++func IsConfigured() bool {
++	return initialized && tokenSupplier != nil && messageURL != ""
++}
++
++func Push(msg *PushMessage) (int, error) {
++	if !IsConfigured() {
++		return 500, errors.New("harmony push is not configured")
++	}
++	if msg.DeviceToken == "" {
++		return 400, errors.New("device token is empty")
++	}
++	if msg.ExtParams == nil {
++		msg.ExtParams = map[string]interface{}{}
++	}
++
++	pushType := 0
++	var payload interface{}
++	if msg.IsDelete {
++		pushType = 6
++		payload = backgroundPayload{ExtraData: buildExtraData(msg.ExtParams)}
++	} else {
++		noti := notification{
++			Category:    getString(msg.ExtParams, "category", "WORK"),
++			Title:       msg.Title,
++			Body:        msg.Body,
++			ClickAction: clickAction{ActionType: 0},
++		}
++		if image, ok := msg.ExtParams["image"]; ok {
++			noti.Image = fmt.Sprint(image)
++		}
++		if badgeValue := buildBadge(msg.ExtParams); badgeValue != nil {
++			noti.Badge = badgeValue
++		}
++		if sound, ok := msg.ExtParams["sound"]; ok {
++			soundValue := strings.TrimSpace(fmt.Sprint(sound))
++			if soundValue != "" {
++				if !strings.HasSuffix(soundValue, ".mp3") {
++					soundValue += ".mp3"
++				}
++				noti.Sound = soundValue
++			}
++		}
++		if style, ok := toInt(msg.ExtParams["style"]); ok {
++			noti.Style = style
++		}
++		inboxContent := getInboxContent(msg.ExtParams)
++		if len(inboxContent) > 0 {
++			noti.InboxContent = inboxContent
++			if noti.Style == 0 {
++				noti.Style = 3
++			}
++		}
++		if fg, ok := toBool(msg.ExtParams["foreground_show"]); ok {
++			noti.ForegroundShow = &fg
++		}
++		payload = alertPayload{Notification: noti}
++	}
++
++	options := &pushOptions{TestMessage: false}
++	if ttl, ok := toInt64(msg.ExtParams["ttl"]); ok && ttl > 0 {
++		options.Ttl = ttl
++	}
++
++	reqBody, err := json.Marshal(message{
++		Payload:     payload,
++		Target:      target{Token: []string{msg.DeviceToken}},
++		PushOptions: options,
++	})
++	if err != nil {
++		return 500, err
++	}
++	token, err := tokenSupplier.Get()
++	if err != nil {
++		return 500, err
++	}
++	req, err := http.NewRequest("POST", messageURL, bytes.NewBuffer(reqBody))
++	if err != nil {
++		return 500, err
++	}
++	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
++	req.Header.Set("Authorization", "Bearer "+token)
++	req.Header.Set("push-type", strconv.Itoa(pushType))
++
++	client := <-clients
++	clients <- client
++	resp, err := client.httpClient.Do(req)
++	if err != nil {
++		return 500, err
++	}
++	defer resp.Body.Close()
++	body, _ := io.ReadAll(resp.Body)
++	if resp.StatusCode != http.StatusOK {
++		return resp.StatusCode, fmt.Errorf(strings.TrimSpace(string(body)))
++	}
++	return 200, nil
++}
++
++func (s *jwtSupplier) Get() (string, error) {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	if s.token != "" && time.Now().Before(s.expiresAt.Add(-30*time.Second)) {
++		return s.token, nil
++	}
++	now := time.Now().UTC()
++	iat := now.Unix()
++	exp := iat + int64(s.duration.Seconds())
++	aud := s.sa.TokenURI
++	if aud == "" {
++		aud = "https://oauth-login.cloud.huawei.com/oauth2/v3/token"
++	}
++	claims := jwt.MapClaims{
++		"aud": aud,
++		"iss": s.sa.SubAccount,
++		"exp": exp,
++		"iat": iat,
++	}
++	token := jwt.NewWithClaims(jwt.SigningMethodPS256, claims)
++	token.Header["kid"] = s.sa.KeyID
++	token.Header["typ"] = "JWT"
++	token.Header["alg"] = "PS256"
++	signed, err := token.SignedString(s.key)
++	if err != nil {
++		return "", err
++	}
++	s.token = signed
++	s.expiresAt = time.Unix(exp, 0)
++	return signed, nil
++}
++
++func newJWTSupplier(sa serviceAccountKey, duration time.Duration) (*jwtSupplier, error) {
++	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(sa.PrivateKey))
++	if err != nil {
++		return nil, fmt.Errorf("failed to parse private key: %w", err)
++	}
++	return &jwtSupplier{
++		sa:       sa,
++		key:      privateKey,
++		duration: duration,
++	}, nil
++}
++
++func loadServiceAccountKey() (*serviceAccountKey, error) {
++	sa := serviceAccountKey{
++		ProjectID:  harmonyProjectID,
++		KeyID:      harmonyKeyID,
++		PrivateKey: harmonyPrivateKey,
++		SubAccount: harmonySubAccount,
++		TokenURI:   harmonyTokenURI,
++	}
++	if sa.ProjectID == "" || sa.KeyID == "" || sa.SubAccount == "" || sa.PrivateKey == "" {
++		return nil, errors.New("invalid service account key file")
++	}
++	return &sa, nil
++}
++
++func buildExtraData(params map[string]interface{}) string {
++	if len(params) == 0 {
++		return ""
++	}
++	data, err := json.Marshal(params)
++	if err != nil {
++		return ""
++	}
++	return string(data)
++}
++
++func getString(params map[string]interface{}, key string, def string) string {
++	if val, ok := params[key]; ok {
++		str := strings.TrimSpace(fmt.Sprint(val))
++		if str != "" {
++			return str
++		}
++	}
++	return def
++}
++
++func getInboxContent(params map[string]interface{}) []string {
++	keys := []string{"inboxContent", "inbox_content", "inboxcontent"}
++	for _, key := range keys {
++		val, ok := getParam(params, key)
++		if !ok {
++			continue
++		}
++		switch v := val.(type) {
++		case []string:
++			return sanitizeStringSlice(v)
++		case []interface{}:
++			result := make([]string, 0, len(v))
++			for _, item := range v {
++				text := strings.TrimSpace(fmt.Sprint(item))
++				if text != "" {
++					result = append(result, text)
++				}
++			}
++			return result
++		case string:
++			return splitInboxContent(v)
++		default:
++			text := strings.TrimSpace(fmt.Sprint(v))
++			if text != "" {
++				return []string{text}
++			}
++		}
++	}
++	return nil
++}
++
++func getParam(params map[string]interface{}, key string) (interface{}, bool) {
++	for k, v := range params {
++		if strings.EqualFold(k, key) {
++			return v, true
++		}
++	}
++	return nil, false
++}
++
++func sanitizeStringSlice(values []string) []string {
++	result := make([]string, 0, len(values))
++	for _, item := range values {
++		text := strings.TrimSpace(item)
++		if text != "" {
++			result = append(result, text)
++		}
++	}
++	return result
++}
++
++func splitInboxContent(value string) []string {
++	raw := strings.TrimSpace(value)
++	if raw == "" {
++		return nil
++	}
++	var parts []string
++	if strings.Contains(raw, "|") {
++		parts = strings.Split(raw, "|")
++	} else if strings.Contains(raw, "\n") {
++		parts = strings.Split(raw, "\n")
++	} else if strings.Contains(raw, ",") {
++		parts = strings.Split(raw, ",")
++	} else {
++		parts = []string{raw}
++	}
++	return sanitizeStringSlice(parts)
++}
++
++func buildBadge(params map[string]interface{}) *badge {
++	badgeValue, ok := getParam(params, "badge")
++	if ok {
++		switch v := badgeValue.(type) {
++		case map[string]interface{}:
++			addNum, _ := toInt(v["addNum"])
++			setNum, _ := toInt(v["setNum"])
++			if addNum != 0 || setNum != 0 {
++				return &badge{AddNum: addNum, SetNum: setNum}
++			}
++		default:
++			value, ok := toInt(v)
++			if ok {
++				if value > 0 {
++					return &badge{SetNum: value}
++				}
++				if value == 0 {
++					return &badge{SetNum: 0}
++				}
++			}
++		}
++	}
++	addNum := getIntParam(params, []string{"badge_add", "badgeadd", "addNum", "badgeAdd"})
++	setNum := getIntParam(params, []string{"badge_set", "badgeset", "setNum", "badgeSet"})
++	if addNum != 0 || setNum != 0 {
++		return &badge{AddNum: addNum, SetNum: setNum}
++	}
++	return nil
++}
++
++func getIntParam(params map[string]interface{}, keys []string) int {
++	for _, key := range keys {
++		val, ok := getParam(params, key)
++		if !ok {
++			continue
++		}
++		if parsed, ok := toInt(val); ok {
++			return parsed
++		}
++	}
++	return 0
++}
++
++func toBool(val interface{}) (bool, bool) {
++	switch v := val.(type) {
++	case bool:
++		return v, true
++	case string:
++		parsed, err := strconv.ParseBool(v)
++		return parsed, err == nil
++	default:
++		return false, false
++	}
++}
++
++func toInt(val interface{}) (int, bool) {
++	switch v := val.(type) {
++	case int:
++		return v, true
++	case int64:
++		return int(v), true
++	case float64:
++		return int(v), true
++	case string:
++		parsed, err := strconv.Atoi(v)
++		return parsed, err == nil
++	default:
++		return 0, false
++	}
++}
++
++func toInt64(val interface{}) (int64, bool) {
++	switch v := val.(type) {
++	case int:
++		return int64(v), true
++	case int64:
++		return v, true
++	case float64:
++		return int64(v), true
++	case string:
++		parsed, err := strconv.ParseInt(v, 10, 64)
++		return parsed, err == nil
++	default:
++		return 0, false
++	}
++}
++
++func min(a, b int) int {
++	if a < b {
++		return a
++	}
++	return b
++}
+diff --git a/main.go b/main.go
+index db5c1d644bb4aa993771c214872e2a3593605ea7..acb149dc9a04fc193ddb401404797eac0b22a0d5 100644
+--- a/main.go
++++ b/main.go
+@@ -10,6 +10,7 @@ import (
+ 
+ 	"github.com/finb/bark-server/v2/apns"
+ 	"github.com/finb/bark-server/v2/database"
++	"github.com/finb/bark-server/v2/harmony"
+ 
+ 	jsoniter "github.com/json-iterator/go"
+ 
+@@ -50,6 +51,9 @@ func runServer(c *cli.Context) error {
+ 	fiberApp := createFiberApp(c, network)
+ 	setupRouter(c, fiberApp)
+ 	initializeDatabase(c)
++	if err := setupHarmony(c); err != nil {
++		return err
++	}
+ 	setupGracefulShutdown(fiberApp)
+ 	return startServer(c, fiberApp, network)
+ }
+@@ -139,6 +143,10 @@ func setupGracefulShutdown(fiberApp *fiber.App) {
+ 	}()
+ }
+ 
++func setupHarmony(c *cli.Context) error {
++	return harmony.Init(c.Int("max-harmony-client-count"), c.String("harmony-domain"))
++}
++
+ func startServer(c *cli.Context, fiberApp *fiber.App, network string) error {
+ 	if network == "tcp" {
+ 		addr := c.String("addr")
+@@ -294,6 +302,18 @@ func getAppFlags() []cli.Flag {
+ 			Value:   1,
+ 			Action:  func(ctx *cli.Context, v int) error { return apns.ReCreateAPNS(v) },
+ 		},
++		&cli.StringFlag{
++			Name:    "harmony-domain",
++			Usage:   "HarmonyOS PushKit server domain",
++			EnvVars: []string{"BARK_SERVER_HARMONY_DOMAIN"},
++			Value:   "push-api.cloud.huawei.com",
++		},
++		&cli.IntFlag{
++			Name:    "max-harmony-client-count",
++			Usage:   "Maximum number of HarmonyOS PushKit client connections",
++			EnvVars: []string{"BARK_SERVER_MAX_HARMONY_CLIENT_COUNT"},
++			Value:   1,
++		},
+ 		&cli.IntFlag{
+ 			Name:    "concurrency",
+ 			Usage:   "Maximum number of concurrent connections",
+diff --git a/route_push.go b/route_push.go
+index 8da18f463c7a001c7ef57faea483d6080a7aed01..9069e5cc5137683b59e15dd9223a42fd7f3fc418 100644
+--- a/route_push.go
++++ b/route_push.go
+@@ -9,6 +9,7 @@ import (
+ 	"github.com/gofiber/fiber/v2/utils"
+ 
+ 	"github.com/finb/bark-server/v2/apns"
++	"github.com/finb/bark-server/v2/harmony"
+ 
+ 	"github.com/gofiber/fiber/v2"
+ )
+@@ -235,6 +236,7 @@ func push(params map[string]interface{}) (int, error) {
+ 				} else {
+ 					msg.Sound = val + ".caf"
+ 				}
++				msg.ExtParams["sound"] = val
+ 			default:
+ 				msg.ExtParams[strings.ToLower(string(key))] = val
+ 			}
+@@ -261,6 +263,24 @@ func push(params map[string]interface{}) (int, error) {
+ 		return 400, fmt.Errorf("failed to get device token: %v", err)
+ 	}
+ 
++	if strings.HasPrefix(deviceToken, harmony.TokenPrefix) {
++		msg.DeviceToken = strings.TrimPrefix(deviceToken, harmony.TokenPrefix)
++		if msg.DeviceToken == "" {
++			return 400, fmt.Errorf("device token is empty")
++		}
++		code, err := harmony.Push(&harmony.PushMessage{
++			DeviceToken: msg.DeviceToken,
++			Title:       msg.Title,
++			Body:        msg.Body,
++			ExtParams:   msg.ExtParams,
++			IsDelete:    msg.IsDelete(),
++		})
++		if err != nil {
++			return 500, fmt.Errorf("push failed: %v", err)
++		}
++		return code, nil
++	}
++
+ 	msg.DeviceToken = deviceToken
+ 
+ 	code, err := apns.Push(&msg)
+diff --git a/route_register.go b/route_register.go
+index 813404948eb676572c4b0267f5734c2324e7e1ea..8ddb10bdc8a0de63114ec6c2ce3d057284256629 100644
+--- a/route_register.go
++++ b/route_register.go
+@@ -1,6 +1,9 @@
+ package main
+ 
+ import (
++	"strings"
++
++	"github.com/finb/bark-server/v2/harmony"
+ 	"github.com/gofiber/fiber/v2"
+ 	"github.com/mritd/logger"
+ )
+@@ -8,6 +11,7 @@ import (
+ type DeviceInfo struct {
+ 	DeviceKey   string `form:"device_key,omitempty" json:"device_key,omitempty" xml:"device_key,omitempty" query:"device_key,omitempty"`
+ 	DeviceToken string `form:"device_token,omitempty" json:"device_token,omitempty" xml:"device_token,omitempty" query:"device_token,omitempty"`
++	Platform    string `form:"platform,omitempty" json:"platform,omitempty" xml:"platform,omitempty" query:"platform,omitempty"`
+ 
+ 	// compatible with old req
+ 	OldDeviceKey   string `form:"key,omitempty" json:"key,omitempty" xml:"key,omitempty" query:"key,omitempty"`
+@@ -50,11 +54,17 @@ func doRegister(c *fiber.Ctx, compat bool) error {
+ 		}
+ 	}
+ 
+-	// DeviceToken length is variable, but should not be too long.
+-	if len(deviceInfo.DeviceToken) > 160 {
++	platform := strings.ToLower(strings.TrimSpace(deviceInfo.Platform))
++	isHarmony := platform == "harmony" || platform == "harmonyos" || platform == "hmos"
++
++	if !isHarmony && len(deviceInfo.DeviceToken) > 160 {
+ 		return c.Status(400).JSON(failed(400, "device token is invalid"))
+ 	}
+ 
++	if isHarmony && !strings.HasPrefix(deviceInfo.DeviceToken, harmony.TokenPrefix) {
++		deviceInfo.DeviceToken = harmony.TokenPrefix + deviceInfo.DeviceToken
++	}
++
+ 	// if deviceInfo.DeviceKey=="", newKey will be filled with a new uuid
+ 	// otherwise it equal to deviceInfo.DeviceKey
+ 	newKey, err := db.SaveDeviceTokenByKey(deviceInfo.DeviceKey, deviceInfo.DeviceToken)
+
+# Omitted sensitive/binary entries (metadata only)
+diff --git a/HarmonyOS-PushKit/key/101653523863572770116892607private.json b/HarmonyOS-PushKit/key/101653523863572770116892607private.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..975a6d5eb6cfc5ae97b93dda7f46b9139edd2cc1
+--- /dev/null
++++ b/HarmonyOS-PushKit/key/101653523863572770116892607private.json
+@@
++[REDACTED: fork adds a 3697-byte Huawei service-account JSON containing credential material; original content intentionally omitted]
+
+diff --git a/bark-data/bark.db b/bark-data/bark.db
+new file mode 100644
+index 0000000000000000000000000000000000000000..d23848083f8109679a7f9eb1d21537804b84fb42
+Binary files /dev/null and b/bark-data/bark.db differ
+
