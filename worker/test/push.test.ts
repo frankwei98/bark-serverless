@@ -167,10 +167,18 @@ describe("push routes", () => {
       deviceKey: "alpha",
       body: "hello",
       sound: "minuet.caf",
+      rawSound: "minuet",
       extParams: {
         badge: 1,
         group: "query-group",
       },
+    });
+  });
+
+  it("does not synthesize a Huawei sound when Bark sound is omitted", () => {
+    expect(buildPushMessage({ body: "hello" })).toMatchObject({
+      sound: "1107",
+      rawSound: undefined,
     });
   });
 

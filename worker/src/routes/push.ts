@@ -110,6 +110,7 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
     subtitle: "",
     body: "",
     sound: "1107",
+    rawSound: undefined as string | undefined,
     extParams: Object.create(null) as Record<string, unknown>,
     id: undefined as string | undefined,
   };
@@ -136,6 +137,7 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
           message.body = rawValue;
           break;
         case "sound":
+          message.rawSound = rawValue;
           message.sound = rawValue.endsWith(".caf") ? rawValue : `${rawValue}.caf`;
           break;
         default:

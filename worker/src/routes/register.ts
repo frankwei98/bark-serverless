@@ -5,12 +5,17 @@ import type { AppConfig, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord } from "@/utils/objects";
 import { DeviceLookupError } from "@/services/device-registry-errors";
+import {
+  encodeRegisteredDeviceToken,
+  isHarmonyPlatform,
+} from "@/services/device-token";
 
 interface DeviceInfo {
   device_key?: unknown;
   device_token?: unknown;
   key?: unknown;
   devicetoken?: unknown;
+  platform?: unknown;
 }
 
 export interface RegisterRouteOptions {
@@ -81,7 +86,16 @@ async function doRegister(c: Context, options: RegisterRouteOptions, compat: boo
   }
 
   const deviceKey = deviceKeyValue;
-  const deviceToken = deviceTokenValue;
+  let deviceToken: string;
+
+  try {
+    deviceToken = encodeRegisteredDeviceToken(
+      deviceTokenValue,
+      deviceInfo.platform,
+    );
+  } catch (error) {
+    return c.json(failed(options.deps.now(), 400, getErrorMessage(error)), 400);
+  }
 
   if (!options.deps.registry.canStoreDeviceKey(deviceKey)) {
     return c.json(failed(options.deps.now(), 400, "device key is invalid"), 400);
@@ -91,7 +105,7 @@ async function doRegister(c: Context, options: RegisterRouteOptions, compat: boo
     return c.json(failed(options.deps.now(), 400, "device token is empty"), 400);
   }
 
-  if (deviceToken.length > 160) {
+  if (!isHarmonyPlatform(deviceInfo.platform) && deviceToken.length > 160) {
     return c.json(failed(options.deps.now(), 400, "device token is invalid"), 400);
   }
 

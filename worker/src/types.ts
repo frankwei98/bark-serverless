@@ -74,6 +74,8 @@ export interface PushMessage {
   subtitle: string;
   body: string;
   sound: string;
+  /** Original Bark sound value before the APNs-specific .caf normalization. */
+  rawSound?: string;
   extParams: Record<string, unknown>;
 }
 
