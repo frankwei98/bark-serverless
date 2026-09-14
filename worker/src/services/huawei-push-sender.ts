@@ -1,5 +1,6 @@
 import type { PushMessage, PushSender } from "@/types";
 import { isRecord } from "@/utils/objects";
+import { HuaweiPushLog } from "@/services/huawei-push-log";
 import { DEFAULT_HUAWEI_REQUEST_TIMEOUT_MS, HARD_MAX_HUAWEI_REQUEST_TIMEOUT_MS } from "@/config";
 
 const HUAWEI_PUSH_ORIGIN = "https://push-api.cloud.huawei.com";
@@ -364,11 +365,30 @@ export class HuaweiPushSender implements PushSender {
   }
 
   async send(message: PushMessage): Promise<void> {
+    const log = new HuaweiPushLog();
+    log.info("start");
+    try {
+      await this.sendWithLog(message, log);
+      log.info("success");
+    } catch (error) {
+      log.failure(error);
+      throw error;
+    }
+  }
+
+  private async sendWithLog(message: PushMessage, log: HuaweiPushLog): Promise<void> {
+    log.info("configuration", {
+      projectConfigured: Boolean(this.config.projectId),
+      keyIdConfigured: Boolean(this.config.keyId),
+      subAccountConfigured: Boolean(this.config.subAccount),
+      privateKeyConfigured: Boolean(this.config.privateKey),
+    });
     const { projectId } = this.requireConfig();
     if (message.deviceToken.length === 0) {
       throw new HuaweiPushError("Huawei device token is empty");
     }
 
+    log.stage = "payload";
     const request = buildHuaweiRequest(message);
     const messageBody = JSON.stringify({
       payload: request.body.payload,
@@ -376,13 +396,22 @@ export class HuaweiPushSender implements PushSender {
         ? { pushOptions: request.body.pushOptions }
         : {}),
     });
-    if (new TextEncoder().encode(messageBody).byteLength > MAX_MESSAGE_BODY_BYTES) {
+    const payloadBytes = new TextEncoder().encode(messageBody).byteLength;
+    log.info("payload_ready", { payloadBytes, pushType: request.pushType });
+    if (payloadBytes > MAX_MESSAGE_BODY_BYTES) {
       throw new HuaweiPushError("Huawei push message exceeds 4096 bytes");
     }
+    log.stage = "jwt";
+    const now = Math.floor((this.config.now?.() ?? Date.now()) / 1000);
+    const jwtCache = this.cachedJwt && now >= this.cachedJwt.expiresAt - JWT_LIFETIME_SECONDS
+      && now < this.cachedJwt.expiresAt - JWT_REFRESH_SKEW_SECONDS
+      ? "hit" : this.jwtPromise ? "pending" : "miss";
     let jwt: string;
     try {
       jwt = await this.getJwt();
+      log.info("jwt_ready", { jwtCache });
     } catch (error) {
+      log.capture(error);
       if (error instanceof HuaweiPushError) {
         throw error;
       }
@@ -395,9 +424,12 @@ export class HuaweiPushSender implements PushSender {
     const timeoutMs = configuredTimeout !== undefined && Number.isInteger(configuredTimeout)
       && configuredTimeout > 0 && configuredTimeout <= HARD_MAX_HUAWEI_REQUEST_TIMEOUT_MS
       ? configuredTimeout : DEFAULT_HUAWEI_REQUEST_TIMEOUT_MS;
+    log.stage = "fetch";
+    log.info("http_start", { timeoutMs, pushType: request.pushType });
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
       timeoutId = setTimeout(() => {
+        log.timedOut = true;
         controller.abort();
         reject(new HuaweiPushError("Huawei push network request failed", undefined, undefined, true));
       }, timeoutMs);
@@ -422,14 +454,18 @@ export class HuaweiPushSender implements PushSender {
               redirect: "error",
             },
           );
-          return {
-            response: nextResponse,
-            responseText: await readBoundedText(nextResponse, controller.signal),
-          };
+          controller.signal.throwIfAborted();
+          log.httpStatus = nextResponse.status;
+          log.info("http_response");
+          log.stage = "response_body";
+          const responseText = await readBoundedText(nextResponse, controller.signal);
+          log.info("body_read", { responseBytes: new TextEncoder().encode(responseText).byteLength });
+          return { response: nextResponse, responseText };
         })(),
         timeout,
       ]));
     } catch (error) {
+      log.capture(error);
       if (error instanceof HuaweiPushError) {
         throw error;
       }
@@ -440,6 +476,7 @@ export class HuaweiPushSender implements PushSender {
       }
     }
 
+    log.stage = "response_parse";
     let parsed: unknown;
     try {
       parsed = JSON.parse(responseText);
@@ -460,6 +497,7 @@ export class HuaweiPushSender implements PushSender {
     const businessCode = rawBusinessCode && /^\d{8}$/.test(rawBusinessCode)
       ? rawBusinessCode
       : undefined;
+    log.info("business_response", { businessCode });
     if (businessCode !== SUCCESS_CODE) {
       throw new HuaweiPushError(
         businessCode

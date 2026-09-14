@@ -1,6 +1,6 @@
 import { constants, generateKeyPairSync, verify } from "node:crypto";
 
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildHuaweiRequest,
@@ -51,6 +51,97 @@ function sender(fetcher: NonNullable<ConstructorParameters<typeof HuaweiPushSend
 function decodeJwtPart(value: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Record<string, unknown>;
 }
+
+describe("Huawei diagnostic logs", () => {
+  let records: Record<string, unknown>[];
+  beforeEach(() => {
+    records = [];
+    const capture = (line: unknown) => { records.push(JSON.parse(String(line))); };
+    vi.spyOn(console, "info").mockImplementation(capture);
+    vi.spyOn(console, "error").mockImplementation(capture);
+  });
+
+  it("correlates successful sends and records cache use without leaking data", async () => {
+    const client = sender(async () => Response.json({ code: "80000000" }));
+    await client.send(message());
+    await client.send(message());
+    const ids = new Set(records.map(row => row.attemptId));
+    expect(ids.size).toBe(2);
+    for (const id of ids) {
+      expect(records.filter(row => row.attemptId === id).map(row => row.event)).toEqual([
+        "huawei.push.start", "huawei.push.configuration", "huawei.push.payload_ready",
+        "huawei.push.jwt_ready", "huawei.push.http_start", "huawei.push.http_response",
+        "huawei.push.body_read", "huawei.push.business_response", "huawei.push.success",
+      ]);
+    }
+    expect(records.filter(row => row.event === "huawei.push.jwt_ready").map(row => row.jwtCache)).toEqual(["miss", "hit"]);
+    const output = JSON.stringify(records);
+    for (const value of [testPrivateKey, "shark-token", "device-key", "project-id", "sub-account", "Title", "Body", "minuet"]) {
+      expect(output).not.toContain(value);
+    }
+  });
+
+  it("logs fetch failures before normalization without echoing arbitrary error text", async () => {
+    let auth = "";
+    const client = sender(async (_input, init) => {
+      auth = new Headers(init?.headers).get("authorization")!;
+      throw new TypeError(`fetch failed ${auth} shark-token secret-body`, {
+        cause: new Error("getaddrinfo ENOTFOUND sensitive-host"),
+      });
+    });
+    await expect(client.send(message())).rejects.toThrow("Huawei push network request failed");
+    expect(records.at(-1)).toMatchObject({ event: "huawei.push.failure", stage: "fetch", errorType: "TypeError", errorCategory: "dns", timedOut: false });
+    for (const value of [auth, "shark-token", "secret-body", "sensitive-host"]) {
+      expect(JSON.stringify(records)).not.toContain(value);
+    }
+  });
+
+  it("distinguishes body stream failures from failures to obtain HTTP headers", async () => {
+    const client = sender(async () => new Response(new ReadableStream({
+      start(controller) { controller.error(new Error("Network connection lost with secret-token")); },
+    }), { status: 200 }));
+    await expect(client.send(message())).rejects.toThrow("Huawei push network request failed");
+    expect(records.at(-1)).toMatchObject({ stage: "response_body", httpStatus: 200, errorCategory: "connection_lost", timedOut: false });
+    expect(JSON.stringify(records)).not.toContain("secret-token");
+  });
+
+  it("logs real timeout expiration separately from other network failures", async () => {
+    const client = new HuaweiPushSender({
+      projectId: "test", keyId: "test", subAccount: "test", privateKey: testPrivateKey,
+      timeoutMs: 5, fetcher: async () => new Response(new ReadableStream({ pull: () => new Promise(() => {}) })),
+    });
+    await expect(client.send(message())).rejects.toThrow("Huawei push network request failed");
+    expect(records.at(-1)).toMatchObject({ stage: "response_body", httpStatus: 200, timedOut: true, errorCategory: "timeout" });
+  });
+
+  it("logs safe business codes but never provider diagnostics", async () => {
+    const client = sender(async () => Response.json({ code: "80200001", msg: "secret-account", requestId: "secret-token" }, { status: 401 }));
+    await expect(client.send(message())).rejects.toThrow("80200001");
+    expect(records.at(-1)).toMatchObject({ stage: "response_parse", httpStatus: 401, businessCode: "80200001", retryable: false });
+    expect(JSON.stringify(records)).not.toContain("secret-account");
+    expect(JSON.stringify(records)).not.toContain("secret-token");
+  });
+
+  it("identifies missing configuration and signing failures", async () => {
+    await expect(new HuaweiPushSender({}).send(message())).rejects.toThrow("not configured");
+    expect(records[1]).toMatchObject({ privateKeyConfigured: false, projectConfigured: false });
+    expect(records.at(-1)).toMatchObject({ stage: "configuration" });
+    const client = new HuaweiPushSender({ projectId: "test", keyId: "test", subAccount: "test", privateKey: "secret-invalid-pem" });
+    await expect(client.send(message())).rejects.toThrow("authentication failed");
+    expect(records.at(-1)).toMatchObject({ stage: "jwt", errorType: "Error" });
+    expect(JSON.stringify(records)).not.toContain("secret-invalid-pem");
+  });
+
+  it("keeps simultaneous sends in independent log contexts", async () => {
+    const client = sender(async () => Response.json({ code: "80000000" }));
+    await Promise.all([client.send(message()), client.send(message())]);
+    const starts = records.filter(row => row.event === "huawei.push.start");
+    expect(new Set(starts.map(row => row.attemptId)).size).toBe(2);
+    for (const start of starts) {
+      expect(records.filter(row => row.attemptId === start.attemptId).at(-1)?.event).toBe("huawei.push.success");
+    }
+  });
+});
 
 describe("Huawei push payload", () => {
   it("maps the supported alert subset without leaking unrelated Bark fields", () => {

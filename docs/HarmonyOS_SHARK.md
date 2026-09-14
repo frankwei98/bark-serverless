@@ -87,6 +87,29 @@ The sender checks HTTP and Huawei business responses. Partial success, unknown c
 
 This version conservatively retains registrations on all Huawei failures. Existing APNs invalid-token cleanup still uses compare-and-delete, including when the device has since registered a Harmony replacement.
 
+## Debugging Huawei sends
+
+After deploying the logging version, start the tail before triggering a new push:
+
+```sh
+npx wrangler tail --format pretty --search huawei.push
+```
+
+Use the same Worker/environment as your deployment (`wrangler tail <worker-name>` or `--env <name>` when applicable). Omit `--search` initially if no events appear. Do not filter with `--status error`: a caught provider failure returned as HTTP 500 can still be a successful Worker invocation.
+
+Huawei sends emit structured `console.info` progress and `console.error` failure records. Each send has a random `attemptId`, including separate IDs for batch recipients. Logs include elapsed time, configuration-presence flags, JWT cache state, payload byte count, push type, timeout, HTTP status and a validated business code. No extra debug binding is required.
+
+For `Huawei push network request failed`, inspect the final `huawei.push.failure`:
+
+- `stage=fetch`: no response headers were obtained.
+- `stage=response_body`: headers were received, but the body could not be read completely; `httpStatus` identifies the response.
+- `timedOut=true`: the configured request deadline expired.
+- `errorType` and `errorCategory`: safe classifications of the original runtime error before it is converted to the public error. Categories such as `dns`, `tls`, `connection_reset`, `connection_lost`, `redirect`, or `worker_io_context` are diagnostic hints based on exception text, not proof of the network cause. Unknown errors are `unclassified`.
+- `stage=jwt` or `configuration`: failure happened before the HTTP request.
+- `stage=response_parse`: inspect `httpStatus` and `businessCode` for provider rejection or malformed response.
+
+Logs never include device keys/tokens, JWTs, private keys, account values, request/response bodies, arbitrary exception messages, or stacks. The public Bark response remains unchanged. Share the `huawei.push.*` records from the same `attemptId` when investigating a failed send; tail's surrounding request metadata may itself contain a device key or message in the URL, so omit that metadata.
+
 ## Device validation
 
 1. Configure an authorized project account and deploy the Worker.
