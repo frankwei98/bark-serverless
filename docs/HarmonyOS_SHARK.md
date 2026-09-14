@@ -66,7 +66,7 @@ Implemented Harmony mappings:
 
 | Bark input | Huawei behavior |
 | --- | --- |
-| `title`, `body` | Notification title and body; click opens the app |
+| `title`, `body` | Notification title and body; click opens the app. Blank titles use `Bark`; blank bodies use the first nonblank subtitle/title, then `Empty Message`. Nonblank text is preserved. Large-text fields use the same fallback. |
 | `category` | Forwarded when nonempty; defaults to `WORK` |
 | `sound` | Explicit nonempty sound gets `.mp3` unless already suffixed; omitted sound uses the system default |
 | `badge` | Integer 0–99 maps to `setNum`, including explicit zero to clear |
@@ -133,3 +133,5 @@ Encrypted messages and client-specific fields require additional Shark protocol 
 - No deployment or real Huawei/APNs sends were performed for this change. Real-device validation is the next step.
 
 References: [Huawei v3 request structure](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-request-struct), [service-account JWT](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/push-jwt-token), [business response codes](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/push-scenariozed-api-response), [Workers Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/).
+
+Push paths accept a trailing slash: `/<key>/text/` is equivalent to `/<key>/text` (body-only), not a title-only message. These fallbacks apply only to Huawei notifications; APNs text and background/delete payloads are unchanged.

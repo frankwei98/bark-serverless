@@ -204,10 +204,24 @@ describe("Huawei push payload", () => {
       deviceToken: "test-token",
     });
     expect(request.body.payload).toEqual({ notification: {
-      category: "WORK", title: "", body: "hello", clickAction: { actionType: 0 },
+      category: "WORK", title: "Bark", body: "hello", clickAction: { actionType: 0 },
       badge: { setNum: 0 }, style: 3, inboxContent: ["first", "second"],
       image: "https://example.com/image.png", foregroundShow: false,
     } });
+  });
+
+  it.each([
+    ["", "", "正文", "Bark", "正文"],
+    ["标题", "", "", "标题", "标题"],
+    ["", "副标题", "", "Bark", "副标题"],
+    [" ", "", "\t", "Bark", "Empty Message"],
+    [" 标题 ", "", " 正文 ", " 标题 ", " 正文 "],
+  ])("fills Huawei alert fields for title=%j subtitle=%j body=%j", (title, subtitle, body, expectedTitle, expectedBody) => {
+    const input = message({ title, subtitle, body, extParams: { style: "1" } });
+    expect(buildHuaweiRequest(input).body.payload).toMatchObject({ notification: {
+      title: expectedTitle, body: expectedBody, bigTitle: expectedTitle, bigBody: expectedBody,
+    } });
+    expect(input).toMatchObject({ title, subtitle, body });
   });
 
   it("supports additive badges and fills required large-text fields", () => {

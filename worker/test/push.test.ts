@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { buildHuaweiRequest } from "@/services/huawei-push-sender";
 import { buildPushMessage } from "@/routes/push";
 import { createApnsError, createHarness } from "./helpers/fakes";
 
@@ -93,6 +94,16 @@ describe("push routes", () => {
     expect(Object.getPrototypeOf(message.extParams)).toBeNull();
     expect(message.extParams.delete).toBeUndefined();
     expect(Object.hasOwn(message.extParams, "__proto__")).toBe(true);
+  });
+
+  it.each(["/alpha/title", "/alpha/title/"])("supports a single text segment at %s for Huawei", async (path) => {
+    const { app, sender } = createHarness({ registrySeed: { alpha: "harmony:test-token" } });
+    const response = await app.request(path);
+    expect(response.status).toBe(200);
+    expect(sender.messages).toHaveLength(1);
+    expect(buildHuaweiRequest(sender.messages[0]!).body.payload).toMatchObject({ notification: {
+      title: "Bark", body: "title",
+    } });
   });
 
   it("handles a V1 path-based push", async () => {

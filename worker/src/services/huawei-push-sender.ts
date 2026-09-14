@@ -199,10 +199,15 @@ export function buildHuaweiRequest(message: PushMessage): HuaweiRequest {
     typeof categoryValue === "string" && categoryValue.trim().length > 0
       ? categoryValue.trim()
       : "WORK";
+  // Bark permits omitted alert fields; Huawei rejects empty notification text.
+  const title = message.title.trim() ? message.title : "Bark";
+  const body = message.body.trim() ? message.body
+    : message.subtitle.trim() ? message.subtitle
+    : message.title.trim() ? message.title : "Empty Message";
   const notification: HuaweiNotification = {
     category,
-    title: message.title,
-    body: message.body,
+    title,
+    body,
     clickAction: { actionType: 0 },
   };
 
@@ -232,8 +237,8 @@ export function buildHuaweiRequest(message: PushMessage): HuaweiRequest {
   const inboxContent = buildInboxContent(message.extParams);
   if (style === 1) {
     notification.style = 1;
-    notification.bigTitle = message.title;
-    notification.bigBody = message.body;
+    notification.bigTitle = title;
+    notification.bigBody = body;
   } else if (inboxContent && (style === undefined || style === 0 || style === 3)) {
     notification.style = 3;
     notification.inboxContent = inboxContent;
