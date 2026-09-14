@@ -451,12 +451,18 @@ export class HuaweiPushSender implements PushSender {
               },
               body: JSON.stringify(request.body),
               signal: controller.signal,
-              redirect: "error",
+              // workerd rejects redirect:"error" before sending the request.
+              // Never follow a redirect carrying the provider Authorization header.
+              redirect: "manual",
             },
           );
           controller.signal.throwIfAborted();
           log.httpStatus = nextResponse.status;
           log.info("http_response");
+          if (nextResponse.status >= 300 && nextResponse.status < 400) {
+            void nextResponse.body?.cancel().catch(() => {});
+            throw new HuaweiPushError("Huawei push redirect rejected", nextResponse.status);
+          }
           log.stage = "response_body";
           const responseText = await readBoundedText(nextResponse, controller.signal);
           log.info("body_read", { responseBytes: new TextEncoder().encode(responseText).byteLength });

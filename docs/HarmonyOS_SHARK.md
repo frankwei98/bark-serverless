@@ -108,6 +108,10 @@ For `Huawei push network request failed`, inspect the final `huawei.push.failure
 - `stage=jwt` or `configuration`: failure happened before the HTTP request.
 - `stage=response_parse`: inspect `httpStatus` and `businessCode` for provider rejection or malformed response.
 
+An immediate `stage=fetch`, `errorType=TypeError`, `errorCategory=redirect` failure on the initial implementation was reproduced in workerd: `redirect: "error"` is rejected before any request is sent. The sender now uses `redirect: "manual"` and explicitly rejects HTTP 3xx without following `Location` or forwarding credentials. Redeploy the fix before investigating Huawei account permissions for that failure.
+
+Run `pnpm test:workerd` for native Workers fetch regression coverage, in addition to `pnpm test` and `pnpm check`. This check generates an ephemeral RSA key and simulates all outbound HTTP at the Miniflare service boundary; it verifies a successful response and rejection of 301/302/303/307/308 without contacting Huawei. It does not prove real-device delivery.
+
 Logs never include device keys/tokens, JWTs, private keys, account values, request/response bodies, arbitrary exception messages, or stacks. The public Bark response remains unchanged. Share the `huawei.push.*` records from the same `attemptId` when investigating a failed send; tail's surrounding request metadata may itself contain a device key or message in the URL, so omit that metadata.
 
 ## Device validation

@@ -267,7 +267,7 @@ describe("HuaweiPushSender", () => {
     ]>;
     const [url, init] = calls[0]!;
     expect(url).toBe("https://push-api.cloud.huawei.com/v3/project%2Fid/messages:send");
-    expect(init).toMatchObject({ method: "POST", redirect: "error" });
+    expect(init).toMatchObject({ method: "POST", redirect: "manual" });
     expect(new Headers(init.headers).get("push-type")).toBe("0");
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
@@ -278,6 +278,16 @@ describe("HuaweiPushSender", () => {
     const client = sender(fetcher);
     await Promise.all([client.send(message()), client.send(message()), client.send(message())]);
     expect(sign).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([301, 302, 303, 307, 308])("rejects HTTP %i without following or exposing Location", async (status) => {
+    const fetcher = vi.fn(async () => new Response(null, {
+      status, headers: { location: "https://example.invalid/private-redirect-target" },
+    }));
+    await expect(sender(fetcher).send(message())).rejects.toMatchObject({
+      message: "Huawei push redirect rejected", statusCode: status, retryable: false,
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 
   it("refreshes the JWT at the 30-second expiry boundary", async () => {
