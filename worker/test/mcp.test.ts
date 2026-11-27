@@ -66,6 +66,19 @@ async function parseMcpResponse(res: Response): Promise<McpResponse> {
 }
 
 describe("mcp compatibility", () => {
+  it("ping returns an empty result", async () => {
+    const { app } = createHarness();
+
+    const res = await jsonRpcRequest(app, "/mcp", "ping");
+
+    expect(res.status).toBe(200);
+    expect(await parseMcpResponse(res)).toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {},
+    });
+  });
+
   it.each(["/mcp", "/mcp/test-key"])("rejects case-insensitive notify duplicates at %s", async (path) => {
     const harness = createHarness({ registrySeed: { "test-key": "test-token" } });
     const res = await jsonRpcRequest(harness.app, path, "tools/call", {
