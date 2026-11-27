@@ -89,6 +89,29 @@ describe("push routes", () => {
     }
   });
 
+  it("ignores singular device_key objects for batch pushes but keeps direct delete flags", async () => {
+    const { app, sender } = createHarness({
+      registrySeed: { alpha: "token-alpha", beta: "token-beta" },
+    });
+
+    const batch = await app.request("/push", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_key: { delete: 1 }, device_keys: ["alpha", "beta"], body: "batch" }),
+    });
+    expect(batch.status).toBe(200);
+    expect(sender.messages.map((message) => message.deviceKey)).toEqual(["alpha", "beta"]);
+    expect(sender.messages.every((message) => !Object.hasOwn(message.extParams, "delete"))).toBe(true);
+
+    const direct = await app.request("/push", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_key: "alpha", delete: 1, body: "direct" }),
+    });
+    expect(direct.status).toBe(200);
+    expect(sender.messages[2]?.extParams.delete).toBe(1);
+  });
+
   it("preserves batch results and later chunks when token cleanup fails", async () => {
     const keys = Array.from({ length: 51 }, (_, index) => `device-${index}`);
     const { app, sender, registry } = createHarness({

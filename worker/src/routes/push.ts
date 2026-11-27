@@ -355,6 +355,7 @@ async function routeDoPushV2(c: Context, options: PushRouteOptions) {
     );
   }
 
+  delete params.device_key;
   const result = await pushBatch(deviceKeys, params, options);
 
   return c.json(withData(options.deps.now(), result), 200);
