@@ -255,6 +255,12 @@ export class DeviceRegistryCoordinatorCore
   }
 
   async deviceTokenByKey(deviceKey: string): Promise<string | null> {
+    // The cached state has already committed and remains authoritative during KV I/O.
+    if (this.state !== undefined) {
+      this.assertDeviceKey(this.state, deviceKey);
+      return this.state.token;
+    }
+
     return this.runExclusive(async () => {
       const state = await this.readPersistedState();
       if (state === undefined) {
@@ -306,7 +312,6 @@ export class DeviceRegistryCoordinatorCore
         dueAtMs,
         failures: 0,
       });
-      await this.mirrorPendingIfDue();
     });
   }
 
@@ -357,7 +362,6 @@ export class DeviceRegistryCoordinatorCore
         dueAtMs,
         failures: 0,
       });
-      await this.mirrorPendingIfDue();
       return true;
     });
   }

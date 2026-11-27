@@ -65,6 +65,7 @@ describe("DeviceRegistryCoordinator", () => {
     let now = 4000;
     const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
     await coordinator.saveDeviceTokenByKey("alpha", "harmony:new-token");
+    await coordinator.alarm();
     expect(values.get("device:alpha")).toBe("harmony:new-token");
     await expect(coordinator.deleteDeviceByKey("alpha", "legacy-ios-token")).resolves.toBe(false);
     await expect(coordinator.deleteDeviceByKey("alpha", "new-token")).resolves.toBe(false);
@@ -84,6 +85,7 @@ describe("DeviceRegistryCoordinator", () => {
     const cleanup = coordinator.deleteDeviceByKey("alpha", "old-token");
     await expect(Promise.all([save, cleanup])).resolves.toEqual([undefined, false]);
     await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe("new-token");
+    await coordinator.alarm();
     expect(values.get("device:alpha")).toBe("new-token");
   });
 
@@ -96,11 +98,13 @@ describe("DeviceRegistryCoordinator", () => {
     });
 
     await expect(coordinator.deleteDeviceByKey("alpha", "old-token")).resolves.toBe(true);
+    await coordinator.alarm();
     await coordinator.saveDeviceTokenByKey("alpha", "new-token");
 
     await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe("new-token");
     expect(values.has("device:alpha")).toBe(false);
     now = 5_000;
+    await coordinator.alarm();
     await coordinator.alarm();
     expect(values.get("device:alpha")).toBe("new-token");
   });
@@ -183,6 +187,8 @@ describe("DeviceRegistryCoordinator", () => {
     namespace.put.mockRejectedValueOnce(new Error("KV unavailable"));
     const first = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
     await expect(first.saveDeviceTokenByKey("alpha", "new")).resolves.toBeUndefined();
+    expect(namespace.put).not.toHaveBeenCalled();
+    await first.alarm();
     expect(values.get("pendingMirror")).toEqual({ generation: 1, token: "new", dueAtMs: 9_000, failures: 1 });
     expect(getAlarm()).toBe(9_000);
     now = 9_000;
@@ -190,6 +196,30 @@ describe("DeviceRegistryCoordinator", () => {
     expect(mirrored.get("device:alpha")).toBe("new");
     expect(values.has("pendingMirror")).toBe(false);
     expect(getAlarm()).toBeNull();
+  });
+
+  it("serves committed registrations while a KV mirror is still writing", async () => {
+    const { storage } = createStorage();
+    const { namespace } = createNamespace();
+    let finishWrite!: () => void;
+    let startWrite!: () => void;
+    const writing = new Promise<void>((resolve) => { finishWrite = resolve; });
+    const started = new Promise<void>((resolve) => { startWrite = resolve; });
+    namespace.put.mockImplementationOnce(() => {
+      startWrite();
+      return writing;
+    });
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
+    await coordinator.saveDeviceTokenByKey("alpha", "new-token");
+
+    const alarm = coordinator.alarm();
+    await started;
+    try {
+      await expect(coordinator.deviceTokenByKey("alpha")).resolves.toBe("new-token");
+    } finally {
+      finishWrite();
+      await alarm;
+    }
   });
 
   it("paces the next mirror from the prior attempt completion", async () => {
@@ -204,6 +234,7 @@ describe("DeviceRegistryCoordinator", () => {
     });
 
     await coordinator.saveDeviceTokenByKey("alpha", "first");
+    await coordinator.alarm();
     now = 20_600;
     await coordinator.saveDeviceTokenByKey("alpha", "second");
 
@@ -255,6 +286,7 @@ describe("DeviceRegistryCoordinator", () => {
     namespace.put.mockRejectedValueOnce(new Error("KV unavailable"));
     const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
     await coordinator.saveDeviceTokenByKey("alpha", "superseded");
+    await coordinator.alarm();
     now = 10_100;
     await coordinator.saveDeviceTokenByKey("alpha", "latest");
     now = 11_000;
