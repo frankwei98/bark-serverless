@@ -21,6 +21,22 @@ describe("push routes", () => {
     expect(sender.messages).toHaveLength(0);
   });
 
+  it("preserves legacy spaces and literal plus signs in push text segments", async () => {
+    const { app, sender } = createHarness({
+      config: { urlPrefix: "/bark" },
+      registrySeed: { "my+key": "token" },
+    });
+
+    const response = await app.request("/bark/my+key/hello+world/sub%2Btitle/body%252B+text/");
+    expect(response.status).toBe(200);
+    expect(sender.messages[0]).toMatchObject({
+      deviceKey: "my+key",
+      title: "hello world",
+      subtitle: "sub+title",
+      body: "body%2B text",
+    });
+  });
+
   it("parses vendor JSON for registration and legacy push paths", async () => {
     const { app, sender } = createHarness();
     const jsonPost = (body: object): RequestInit => ({

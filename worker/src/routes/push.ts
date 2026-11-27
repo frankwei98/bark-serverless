@@ -26,11 +26,11 @@ type PathParamResult =
 
 function extractPathParams(c: Context): PathParamResult {
   const params: ParamMap = {};
-  const keys = ["device_key", "subtitle", "title", "body"] as const;
+  const pathname = new URL(c.req.url).pathname;
 
   try {
-    // Validate the original encoding: Hono tolerates malformed escape sequences.
-    decodeURIComponent(new URL(c.req.url).pathname);
+    // Hono tolerates malformed escapes. Validate the original path first.
+    decodeURIComponent(pathname);
   } catch (error) {
     return {
       ok: false,
@@ -38,12 +38,19 @@ function extractPathParams(c: Context): PathParamResult {
     };
   }
 
-  for (const key of keys) {
-    const value = c.req.param(key);
-    if (value) {
-      // Hono has already decoded the matched parameter exactly once.
-      params[key] = value;
-    }
+  const deviceKey = c.req.param("device_key");
+  if (deviceKey) {
+    params.device_key = deviceKey;
+  }
+
+  const textKeys = (["title", "subtitle", "body"] as const).filter(
+    (key) => c.req.param(key) !== undefined,
+  );
+  const segments = pathname.replace(/\/$/, "").split("/");
+  const textStart = segments.length - textKeys.length;
+  for (const [index, key] of textKeys.entries()) {
+    // Legacy text segments use Go's QueryUnescape semantics. Decode %2B after +.
+    params[key] = decodeURIComponent(segments[textStart + index]!.replace(/\+/g, " "));
   }
 
   return { ok: true, params };
