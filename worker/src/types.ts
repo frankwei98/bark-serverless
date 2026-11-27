@@ -93,6 +93,8 @@ export interface ApnsSendError extends Error {
 
 export interface PushSender {
   send(message: PushMessage): Promise<void>;
+  /** Shares preparation for messages whose only differences are their device key and token. */
+  forBatch?(message: Omit<PushMessage, "deviceToken">): PushSender;
 }
 
 export interface RuntimeDeps {

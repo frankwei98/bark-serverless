@@ -10,6 +10,7 @@ export interface CloudflareApnsConfig {
 }
 
 const JWT_REUSE_SECONDS = 30 * 60;
+const MAX_APNS_PAYLOAD_BYTES = 4096;
 const RESERVED_PAYLOAD_KEYS = new Set(["aps"]);
 
 function trimLeadingZeroes(bytes: Uint8Array): Uint8Array {
@@ -167,6 +168,44 @@ function parsePemPrivateKey(pem: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+function prepareApnsPayload(message: Omit<PushMessage, "deviceToken">) {
+  const deleteFlag = message.extParams.delete;
+  const isDelete = deleteFlag === "1" || deleteFlag === 1;
+
+  const aps: Record<string, unknown> = { "mutable-content": 1 };
+  const payload: Record<string, unknown> = { aps };
+
+  if (isDelete) {
+    aps["content-available"] = 1;
+  } else {
+    const alert: Record<string, string> = {};
+    if (message.title.length > 0) alert.title = message.title;
+    if (message.subtitle.length > 0) alert.subtitle = message.subtitle;
+    if (message.body.length > 0) alert.body = message.body;
+    if (Object.keys(alert).length > 0) {
+      aps.alert = alert;
+    }
+    aps.sound = message.sound;
+    aps.category = "myNotificationCategory";
+    if (message.extParams.group) {
+      aps["thread-id"] = String(message.extParams.group);
+    }
+  }
+
+  for (const [key, value] of Object.entries(message.extParams)) {
+    const normalizedKey = key.toLowerCase();
+    if (RESERVED_PAYLOAD_KEYS.has(normalizedKey)) {
+      continue;
+    }
+
+    payload[normalizedKey] = stringifyCustomField(value);
+  }
+
+  const body = JSON.stringify(payload);
+  const tooLarge = new TextEncoder().encode(body).byteLength > MAX_APNS_PAYLOAD_BYTES;
+  return { body, isDelete, tooLarge };
+}
+
 export class CloudflareApnsClient implements PushSender {
   private cryptoKey: CryptoKey | null = null;
   private pendingJwt?: Promise<string>;
@@ -228,7 +267,28 @@ export class CloudflareApnsClient implements PushSender {
     return jwt;
   }
 
+  forBatch(message: Omit<PushMessage, "deviceToken">): PushSender {
+    let prepared: ReturnType<typeof prepareApnsPayload> | undefined;
+    return {
+      send: (recipient) => this.sendPrepared(recipient, prepared ??= prepareApnsPayload(message)),
+    };
+  }
+
   async send(message: PushMessage): Promise<void> {
+    return this.sendPrepared(message, prepareApnsPayload(message));
+  }
+
+  private async sendPrepared(
+    message: PushMessage,
+    { body, isDelete, tooLarge }: ReturnType<typeof prepareApnsPayload>,
+  ): Promise<void> {
+    if (tooLarge) {
+      const error = new Error("APNs push message exceeds 4096 bytes") as ApnsSendError;
+      error.statusCode = 413;
+      error.reason = "PayloadTooLarge";
+      throw error;
+    }
+
     if (!this.config.privateKey || !this.config.keyId || !this.config.teamId || !this.config.topic) {
       const error = new Error(
         "APNs client requires privateKey, keyId, teamId, and topic",
@@ -239,38 +299,6 @@ export class CloudflareApnsClient implements PushSender {
     }
 
     const jwt = await this.getJwt();
-    const deleteFlag = message.extParams.delete;
-    const isDelete = deleteFlag === "1" || deleteFlag === 1;
-
-    const aps: Record<string, unknown> = { "mutable-content": 1 };
-    const payload: Record<string, unknown> = { aps };
-
-    if (isDelete) {
-      aps["content-available"] = 1;
-    } else {
-      const alert: Record<string, string> = {};
-      if (message.title.length > 0) alert.title = message.title;
-      if (message.subtitle.length > 0) alert.subtitle = message.subtitle;
-      if (message.body.length > 0) alert.body = message.body;
-      if (Object.keys(alert).length > 0) {
-        aps.alert = alert;
-      }
-      aps.sound = message.sound;
-      aps.category = "myNotificationCategory";
-      if (message.extParams.group) {
-        aps["thread-id"] = String(message.extParams.group);
-      }
-    }
-
-    for (const [key, value] of Object.entries(message.extParams)) {
-      const normalizedKey = key.toLowerCase();
-      if (RESERVED_PAYLOAD_KEYS.has(normalizedKey)) {
-        continue;
-      }
-
-      payload[normalizedKey] = stringifyCustomField(value);
-    }
-
     const headers: Record<string, string> = {
       authorization: `bearer ${jwt}`,
       "apns-topic": this.config.topic,
@@ -294,7 +322,7 @@ export class CloudflareApnsClient implements PushSender {
       response = await fetch(url, {
         method: "POST",
         headers,
-        body: JSON.stringify(payload),
+        body,
         signal: AbortSignal.timeout(
           this.config.timeoutMs ?? DEFAULT_APNS_REQUEST_TIMEOUT_MS,
         ),

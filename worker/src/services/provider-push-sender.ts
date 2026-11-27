@@ -10,6 +10,10 @@ export class ProviderPushSender implements PushSender {
     private readonly huawei: PushSender,
   ) {}
 
+  forBatch(message: Omit<PushMessage, "deviceToken">): PushSender {
+    return new ProviderPushSender(this.apns.forBatch?.(message) ?? this.apns, this.huawei);
+  }
+
   async send(message: PushMessage): Promise<void> {
     const target = routeDeviceToken(message.deviceToken);
     if (target.provider === "apns") {
