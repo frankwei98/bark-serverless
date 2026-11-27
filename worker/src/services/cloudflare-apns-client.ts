@@ -169,6 +169,7 @@ function parsePemPrivateKey(pem: string): ArrayBuffer {
 
 export class CloudflareApnsClient implements PushSender {
   private cryptoKey: CryptoKey | null = null;
+  private pendingJwt?: Promise<string>;
   private cachedJwt: { token: string; iat: number } | null = null;
 
   constructor(private readonly config: CloudflareApnsConfig) {}
@@ -198,6 +199,19 @@ export class CloudflareApnsClient implements PushSender {
       return this.cachedJwt.token;
     }
 
+    if (this.pendingJwt) {
+      return this.pendingJwt;
+    }
+
+    this.pendingJwt = this.signJwt(iat);
+    try {
+      return await this.pendingJwt;
+    } finally {
+      this.pendingJwt = undefined;
+    }
+  }
+
+  private async signJwt(iat: number): Promise<string> {
     const header = base64url(JSON.stringify({ alg: "ES256", typ: "JWT", kid: this.config.keyId }));
     const payload = base64url(JSON.stringify({ iss: this.config.teamId, iat }));
     const signingInput = `${header}.${payload}`;
