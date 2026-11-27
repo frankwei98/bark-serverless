@@ -269,6 +269,24 @@ describe("CloudflareApnsClient", () => {
     expect(binary.length).toBe(64);
   });
 
+  it("preserves the invalidation timestamp from an APNs 410 response", async () => {
+    installCryptoStub();
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json(
+      { reason: "Unregistered", timestamp: 4_000 },
+      { status: 410 },
+    )));
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+    await expect(client.send(createMessage())).rejects.toMatchObject({
+      statusCode: 410,
+      invalidatedAtMs: 4_000,
+    });
+  });
+
   it("rejects oversized UTF-8 payloads before signing or sending", async () => {
     const { sign } = installCryptoStub();
     const fetchMock = vi.fn<typeof fetch>();
