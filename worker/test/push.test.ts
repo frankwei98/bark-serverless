@@ -656,6 +656,33 @@ describe("push routes", () => {
     });
   });
 
+  it("starts later recipients while the first recipient is still sending", async () => {
+    const keys = Array.from({ length: 51 }, (_, index) => `device-${index}`);
+    const registrySeed = Object.fromEntries(keys.map((key) => [key, `token-${key}`]));
+    const { app, sender } = createHarness({ registrySeed });
+    let releaseFirst!: () => void;
+    const holdFirst = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const send = sender.send.bind(sender);
+    sender.send = async (message) => {
+      if (message.deviceKey === keys[0]) await holdFirst;
+      await send(message);
+    };
+
+    const request = app.request("/push", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body: "hello", device_keys: keys }),
+    });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(sender.messages.some((message) => message.deviceKey === keys.at(-1))).toBe(true);
+    } finally {
+      releaseFirst();
+      await request;
+    }
+  });
+
   it("limits batch push concurrency while preserving input order", async () => {
     const registrySeed = Object.fromEntries(
       Array.from({ length: 120 }, (_, index) => [
