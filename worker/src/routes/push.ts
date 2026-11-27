@@ -269,6 +269,8 @@ async function pushBatch(
   options: PushRouteOptions,
 ): Promise<Record<string, unknown>[]> {
   const message = buildPushMessage(params);
+  const pushSender = options.deps.pushSender.forBatch?.(message) ?? options.deps.pushSender;
+  const batchOptions = { ...options, deps: { ...options.deps, pushSender } };
   const rows: Record<string, unknown>[] = new Array(deviceKeys.length);
   let nextIndex = 0;
 
@@ -278,7 +280,7 @@ async function pushBatch(
       const deviceKey = deviceKeys[index]!;
       let attempt: PushAttempt;
       try {
-        attempt = await pushMessage({ ...message, deviceKey }, options);
+        attempt = await pushMessage({ ...message, deviceKey }, batchOptions);
       } catch (error) {
         console.error("Batch device push failed", error);
         attempt = { code: 500, error: new Error(INTERNAL_ERROR_MESSAGE) };

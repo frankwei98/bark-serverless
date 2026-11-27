@@ -269,6 +269,41 @@ describe("CloudflareApnsClient", () => {
     expect(binary.length).toBe(64);
   });
 
+  it("rejects oversized UTF-8 payloads before signing or sending", async () => {
+    const { sign } = installCryptoStub();
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new CloudflareApnsClient({});
+
+    // The JS string is under 4096 code units but its UTF-8 representation is larger.
+    const message = createMessage({ body: "中".repeat(1400) });
+    await expect(client.send(message)).rejects.toMatchObject({ statusCode: 413 });
+    await expect(client.forBatch(message).send(message)).rejects.toMatchObject({ statusCode: 413 });
+    expect(sign).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("serializes the APNs body once for recipients in a batch", async () => {
+    installCryptoStub();
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+    const toJSON = vi.fn(() => ({ value: 1 }));
+    const message = createMessage({ extParams: { custom: { toJSON } } });
+    const batch = client.forBatch(message);
+    await batch.send(message);
+    await batch.send({ ...message, deviceToken: "another-token" });
+
+    expect(toJSON).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(fetchMock.mock.calls[1]?.[1]?.body);
+  });
+
   it("shares one provider JWT across concurrent cold sends", async () => {
     const { importKey, sign } = installCryptoStub();
     const client = new CloudflareApnsClient({
