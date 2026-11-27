@@ -20,7 +20,7 @@ function createNamespace() {
 
 function createCoordinator() {
   const stub: DeviceRegistryCoordinatorStub = {
-    deviceTokenByKey: vi.fn(async () => null),
+    deviceRegistrationByKey: vi.fn(async () => null),
     saveDeviceTokenByKey: vi.fn(async () => {}),
     deleteDeviceByKey: vi.fn(async () => true),
   };
@@ -105,10 +105,10 @@ describe("KVDeviceRegistry count caching", () => {
     );
 
     await expect(
-      registry.deleteDeviceByKey("alpha", "old-token"),
+      registry.deleteDeviceByKey("alpha", "old-token", undefined, 3),
     ).resolves.toBe(false);
 
     expect(coordinatorForKey).toHaveBeenCalledWith("alpha");
-    expect(stub.deleteDeviceByKey).toHaveBeenCalledWith("alpha", "old-token", undefined);
+    expect(stub.deleteDeviceByKey).toHaveBeenCalledWith("alpha", "old-token", undefined, 3);
   });
 });

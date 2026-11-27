@@ -8,6 +8,7 @@ import type {
   ApnsSendError,
   AppConfig,
   BuildInfo,
+  DeviceRegistration,
   DeviceRegistry,
   PushMessage,
   PushSender,
@@ -15,12 +16,13 @@ import type {
 } from "@/types";
 
 export class InMemoryDeviceRegistry implements DeviceRegistry {
-  private readonly store = new Map<string, string>();
+  private readonly store = new Map<string, DeviceRegistration>();
+  private nextRevision = 1;
   private generatedKeys = ["generated-device-key"];
 
   constructor(seed: Record<string, string> = {}) {
     for (const [key, value] of Object.entries(seed)) {
-      this.store.set(key, value);
+      this.store.set(key, { token: value, revision: 0 });
     }
   }
 
@@ -29,7 +31,7 @@ export class InMemoryDeviceRegistry implements DeviceRegistry {
   }
 
   snapshot(): Record<string, string> {
-    return Object.fromEntries(this.store.entries());
+    return Object.fromEntries(Array.from(this.store, ([key, { token }]) => [key, token]));
   }
 
   async countAll(): Promise<number> {
@@ -41,14 +43,18 @@ export class InMemoryDeviceRegistry implements DeviceRegistry {
   }
 
   async deviceTokenByKey(key: string): Promise<string> {
-    const token = this.store.get(key);
-    if (token === undefined) {
+    return (await this.deviceRegistrationByKey(key)).token;
+  }
+
+  async deviceRegistrationByKey(key: string): Promise<DeviceRegistration> {
+    const registration = this.store.get(key);
+    if (registration === undefined) {
       throw new DeviceLookupError("key not found");
     }
-    if (token.length === 0) {
+    if (registration.token.length === 0) {
       throw new DeviceLookupError("device token invalid");
     }
-    return token;
+    return registration;
   }
 
   async saveDeviceTokenByKey(key: string, token: string): Promise<string> {
@@ -57,12 +63,21 @@ export class InMemoryDeviceRegistry implements DeviceRegistry {
       this.store.delete(nextKey);
       return nextKey;
     }
-    this.store.set(nextKey, token);
+    this.store.set(nextKey, { token, revision: this.nextRevision++ });
     return nextKey;
   }
 
-  async deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean> {
-    if (expectedToken !== undefined && this.store.get(key) !== expectedToken) {
+  async deleteDeviceByKey(
+    key: string,
+    expectedToken?: string,
+    invalidatedAtMs?: number,
+    expectedRevision?: number,
+  ): Promise<boolean> {
+    const registration = this.store.get(key);
+    if (expectedToken !== undefined && registration?.token !== expectedToken) {
+      return false;
+    }
+    if (invalidatedAtMs === undefined && expectedRevision !== undefined && registration?.revision !== expectedRevision) {
       return false;
     }
 

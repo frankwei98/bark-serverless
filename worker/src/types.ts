@@ -64,12 +64,23 @@ export type ParamValue =
 
 export type ParamMap = Record<string, unknown>;
 
+export interface DeviceRegistration {
+  token: string;
+  revision: number;
+}
+
 export interface DeviceRegistry {
   countAll(): Promise<number>;
   canStoreDeviceKey(key: string): boolean;
   deviceTokenByKey(key: string): Promise<string>;
+  deviceRegistrationByKey(key: string): Promise<DeviceRegistration>;
   saveDeviceTokenByKey(key: string, token: string): Promise<string>;
-  deleteDeviceByKey(key: string, expectedToken?: string, invalidatedAtMs?: number): Promise<boolean>;
+  deleteDeviceByKey(
+    key: string,
+    expectedToken?: string,
+    invalidatedAtMs?: number,
+    expectedRevision?: number,
+  ): Promise<boolean>;
 }
 
 export interface PushMessage {
