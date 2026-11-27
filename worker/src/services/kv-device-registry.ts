@@ -74,10 +74,11 @@ export class KVDeviceRegistry implements DeviceRegistry {
     return nextKey;
   }
 
-  async deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean> {
+  async deleteDeviceByKey(key: string, expectedToken?: string, invalidatedAtMs?: number): Promise<boolean> {
     const deleted = await this.coordinatorForKey(key).deleteDeviceByKey(
       key,
       expectedToken,
+      ...(invalidatedAtMs === undefined ? [] : [invalidatedAtMs]),
     );
     if (deleted) {
       this.invalidateCountCache();

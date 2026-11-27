@@ -69,7 +69,7 @@ export interface DeviceRegistry {
   canStoreDeviceKey(key: string): boolean;
   deviceTokenByKey(key: string): Promise<string>;
   saveDeviceTokenByKey(key: string, token: string): Promise<string>;
-  deleteDeviceByKey(key: string, expectedToken?: string): Promise<boolean>;
+  deleteDeviceByKey(key: string, expectedToken?: string, invalidatedAtMs?: number): Promise<boolean>;
 }
 
 export interface PushMessage {
@@ -88,6 +88,7 @@ export interface PushMessage {
 export interface ApnsSendError extends Error {
   statusCode?: number;
   reason?: string;
+  invalidatedAtMs?: number;
 }
 
 export interface PushSender {

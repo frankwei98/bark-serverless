@@ -110,11 +110,11 @@ describe("DeviceRegistryCoordinator", () => {
     const { namespace } = createNamespace({ "device:alpha": "same-token" });
     const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
     await coordinator.saveDeviceTokenByKey("alpha", "same-token");
-    expect(values.get("registration")).toEqual({ deviceKey: "alpha", token: "same-token", generation: 0 });
+    expect(values.get("registration")).toMatchObject({ deviceKey: "alpha", token: "same-token", generation: 0 });
     expect(namespace.put).not.toHaveBeenCalled();
   });
 
-  it("does not rewrite authoritative or KV state for the same token", async () => {
+  it("refreshes registration time for the same token without rewriting KV", async () => {
     const { storage, values, transactionStarted } = createStorage();
     values.set("registration", {
       deviceKey: "alpha",
@@ -122,12 +122,18 @@ describe("DeviceRegistryCoordinator", () => {
       generation: 7,
     });
     const { namespace } = createNamespace({ "device:alpha": "same-token" });
-    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace);
+    let now = 4_000;
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
 
     await coordinator.saveDeviceTokenByKey("alpha", "same-token");
+    now = 5_000;
     await coordinator.saveDeviceTokenByKey("alpha", "same-token");
 
-    expect(transactionStarted).not.toHaveBeenCalled();
+    expect(transactionStarted).toHaveBeenCalledTimes(2);
+    expect(values.get("registration")).toMatchObject({ generation: 7, registeredAtMs: 5_000 });
+    const reloaded = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => now });
+    await expect(reloaded.deleteDeviceByKey("alpha", "same-token", 4_500)).resolves.toBe(false);
+    await expect(reloaded.deviceTokenByKey("alpha")).resolves.toBe("same-token");
     expect(namespace.put).not.toHaveBeenCalled();
     expect(namespace.delete).not.toHaveBeenCalled();
   });
@@ -164,7 +170,7 @@ describe("DeviceRegistryCoordinator", () => {
     const { namespace } = createNamespace({ "device:alpha": "old" });
     const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => 5_100 });
     await coordinator.saveDeviceTokenByKey("alpha", "new");
-    expect(values.get("registration")).toEqual({ deviceKey: "alpha", token: "new", generation: 4, lastMirrorAtMs: 5_000 });
+    expect(values.get("registration")).toEqual({ deviceKey: "alpha", token: "new", generation: 4, lastMirrorAtMs: 5_000, registeredAtMs: 5_100 });
     expect(values.get("pendingMirror")).toEqual({ generation: 4, token: "new", dueAtMs: 6_000, failures: 0 });
     expect(getAlarm()).toBe(6_000);
     expect(namespace.put).not.toHaveBeenCalled();

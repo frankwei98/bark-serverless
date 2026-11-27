@@ -294,9 +294,14 @@ export class CloudflareApnsClient implements PushSender {
 
     if (!response.ok) {
       let reason = `APNs error ${response.status}`;
+      let invalidatedAtMs: number | undefined;
       try {
-        const body = (await response.json()) as { reason?: string };
-        if (body.reason) {
+        const body = (await response.json()) as { reason?: string; timestamp?: number };
+        if (response.status === 410 && typeof body.timestamp === "number" &&
+          Number.isSafeInteger(body.timestamp) && body.timestamp > 0) {
+          invalidatedAtMs = body.timestamp;
+        }
+        if (typeof body.reason === "string" && body.reason) {
           reason = body.reason;
         }
       } catch {
@@ -305,6 +310,7 @@ export class CloudflareApnsClient implements PushSender {
       const error = new Error(reason) as ApnsSendError;
       error.statusCode = response.status;
       error.reason = reason;
+      error.invalidatedAtMs = invalidatedAtMs;
       throw error;
     }
   }

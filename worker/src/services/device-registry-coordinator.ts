@@ -30,6 +30,7 @@ interface RegistrationState {
   token: string | null;
   generation?: number;
   lastMirrorAtMs?: number;
+  registeredAtMs?: number;
 }
 
 interface PendingMirror {
@@ -46,7 +47,7 @@ interface CoordinatorClock {
 export interface DeviceRegistryCoordinatorStub {
   deviceTokenByKey(deviceKey: string): Promise<string | null>;
   saveDeviceTokenByKey(deviceKey: string, token: string): Promise<void>;
-  deleteDeviceByKey(deviceKey: string, expectedToken?: string): Promise<boolean>;
+  deleteDeviceByKey(deviceKey: string, expectedToken?: string, invalidatedAtMs?: number): Promise<boolean>;
 }
 
 const REGISTRATION_STATE_KEY = "registration";
@@ -277,12 +278,15 @@ export class DeviceRegistryCoordinatorCore
         previous === undefined
           ? await this.legacyToken(deviceKey)
           : previous.token;
+      const registeredAtMs = this.clock.now();
       if (currentToken === normalizedToken) {
-        if (previous === undefined) {
+        if (previous?.registeredAtMs !== registeredAtMs) {
           await this.persistAuthoritativeState({
+            generation: 0,
+            ...previous,
             deviceKey,
             token: normalizedToken,
-            generation: 0,
+            registeredAtMs,
           });
         }
         return;
@@ -296,7 +300,7 @@ export class DeviceRegistryCoordinatorCore
         generation,
         lastMirrorAtMs: previous?.lastMirrorAtMs,
       };
-      await this.scheduleMirror(next, {
+      await this.scheduleMirror({ ...next, registeredAtMs }, {
         generation,
         token: normalizedToken,
         dueAtMs,
@@ -309,6 +313,7 @@ export class DeviceRegistryCoordinatorCore
   async deleteDeviceByKey(
     deviceKey: string,
     expectedToken?: string,
+    invalidatedAtMs?: number,
   ): Promise<boolean> {
     return this.runExclusive(async () => {
       const previous = await this.readPersistedState();
@@ -321,6 +326,10 @@ export class DeviceRegistryCoordinatorCore
           ? await this.legacyToken(deviceKey)
           : previous.token;
       if (expectedToken !== undefined && currentToken !== expectedToken) {
+        return false;
+      }
+      if (invalidatedAtMs !== undefined && previous?.registeredAtMs !== undefined &&
+        previous.registeredAtMs >= invalidatedAtMs) {
         return false;
       }
       if (currentToken === null) {
@@ -380,8 +389,9 @@ export class DeviceRegistryCoordinator extends DurableObject<CoordinatorEnv> {
   deleteDeviceByKey(
     deviceKey: string,
     expectedToken?: string,
+    invalidatedAtMs?: number,
   ): Promise<boolean> {
-    return this.coordinator.deleteDeviceByKey(deviceKey, expectedToken);
+    return this.coordinator.deleteDeviceByKey(deviceKey, expectedToken, invalidatedAtMs);
   }
 
   alarm(): Promise<void> {

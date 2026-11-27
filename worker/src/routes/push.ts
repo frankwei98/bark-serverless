@@ -201,6 +201,7 @@ export async function pushOne(params: ParamMap, options: PushRouteOptions): Prom
         await options.deps.registry.deleteDeviceByKey(
           message.deviceKey,
           deviceToken,
+          normalized.invalidatedAtMs,
         );
       } catch (cleanupError) {
         console.error("Invalid device token cleanup failed", cleanupError);
