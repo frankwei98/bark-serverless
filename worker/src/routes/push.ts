@@ -170,8 +170,13 @@ export function buildPushMessage(params: ParamMap): Omit<PushMessage, "deviceTok
 }
 
 export async function pushOne(params: ParamMap, options: PushRouteOptions): Promise<PushAttempt> {
-  const message = buildPushMessage(params);
+  return pushMessage(buildPushMessage(params), options);
+}
 
+async function pushMessage(
+  message: Omit<PushMessage, "deviceToken">,
+  options: PushRouteOptions,
+): Promise<PushAttempt> {
   if (message.deviceKey.length === 0) {
     return { code: 400, error: new Error("device key is empty") };
   }
@@ -263,36 +268,36 @@ async function pushBatch(
   params: ParamMap,
   options: PushRouteOptions,
 ): Promise<Record<string, unknown>[]> {
-  const rows: Record<string, unknown>[] = [];
+  const message = buildPushMessage(params);
+  const rows: Record<string, unknown>[] = new Array(deviceKeys.length);
+  let nextIndex = 0;
 
-  for (let i = 0; i < deviceKeys.length; i += BATCH_PUSH_CONCURRENCY) {
-    const chunk = deviceKeys.slice(i, i + BATCH_PUSH_CONCURRENCY);
-    const chunkRows = await Promise.all(
-      chunk.map(async (deviceKey) => {
-        const nextParams = { ...params, device_key: deviceKey };
-        let attempt: PushAttempt;
-        try {
-          attempt = await pushOne(nextParams, options);
-        } catch (error) {
-          console.error("Batch device push failed", error);
-          attempt = { code: 500, error: new Error(INTERNAL_ERROR_MESSAGE) };
-        }
+  async function sendNextDevices() {
+    while (nextIndex < deviceKeys.length) {
+      const index = nextIndex++;
+      const deviceKey = deviceKeys[index]!;
+      let attempt: PushAttempt;
+      try {
+        attempt = await pushMessage({ ...message, deviceKey }, options);
+      } catch (error) {
+        console.error("Batch device push failed", error);
+        attempt = { code: 500, error: new Error(INTERNAL_ERROR_MESSAGE) };
+      }
 
-        const row: Record<string, unknown> = {
-          code: attempt.code,
-          device_key: deviceKey,
-        };
-
-        if (attempt.error) {
-          row.message = attempt.error.message;
-        }
-
-        return row;
-      }),
-    );
-
-    rows.push(...chunkRows);
+      const row: Record<string, unknown> = {
+        code: attempt.code,
+        device_key: deviceKey,
+      };
+      if (attempt.error) {
+        row.message = attempt.error.message;
+      }
+      rows[index] = row;
+    }
   }
+
+  await Promise.all(
+    Array.from({ length: Math.min(deviceKeys.length, BATCH_PUSH_CONCURRENCY) }, sendNextDevices),
+  );
 
   return rows;
 }
