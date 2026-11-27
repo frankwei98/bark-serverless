@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { deviceStorageKey } from "@/services/device-registry-storage";
+import type { DeviceRegistration } from "@/types";
 
 interface CoordinatorNamespace {
   get(key: string): Promise<string | null>;
@@ -31,6 +32,7 @@ interface RegistrationState {
   generation?: number;
   lastMirrorAtMs?: number;
   registeredAtMs?: number;
+  registrationRevision?: number;
 }
 
 interface PendingMirror {
@@ -45,9 +47,14 @@ interface CoordinatorClock {
 }
 
 export interface DeviceRegistryCoordinatorStub {
-  deviceTokenByKey(deviceKey: string): Promise<string | null>;
+  deviceRegistrationByKey(deviceKey: string): Promise<DeviceRegistration | null>;
   saveDeviceTokenByKey(deviceKey: string, token: string): Promise<void>;
-  deleteDeviceByKey(deviceKey: string, expectedToken?: string, invalidatedAtMs?: number): Promise<boolean>;
+  deleteDeviceByKey(
+    deviceKey: string,
+    expectedToken?: string,
+    invalidatedAtMs?: number,
+    expectedRevision?: number,
+  ): Promise<boolean>;
 }
 
 const REGISTRATION_STATE_KEY = "registration";
@@ -254,21 +261,29 @@ export class DeviceRegistryCoordinatorCore
     }
   }
 
+  private registrationFromState(state: RegistrationState, deviceKey: string): DeviceRegistration | null {
+    this.assertDeviceKey(state, deviceKey);
+    return state.token === null ? null : { token: state.token, revision: state.registrationRevision ?? 0 };
+  }
+
   async deviceTokenByKey(deviceKey: string): Promise<string | null> {
+    return (await this.deviceRegistrationByKey(deviceKey))?.token ?? null;
+  }
+
+  async deviceRegistrationByKey(deviceKey: string): Promise<DeviceRegistration | null> {
     // The cached state has already committed and remains authoritative during KV I/O.
     if (this.state !== undefined) {
-      this.assertDeviceKey(this.state, deviceKey);
-      return this.state.token;
+      return this.registrationFromState(this.state, deviceKey);
     }
 
     return this.runExclusive(async () => {
       const state = await this.readPersistedState();
-      if (state === undefined) {
-        return this.legacyToken(deviceKey);
+      if (state !== undefined) {
+        return this.registrationFromState(state, deviceKey);
       }
 
-      this.assertDeviceKey(state, deviceKey);
-      return state.token;
+      const token = await this.legacyToken(deviceKey);
+      return token === null ? null : { token, revision: 0 };
     });
   }
 
@@ -284,17 +299,19 @@ export class DeviceRegistryCoordinatorCore
         previous === undefined
           ? await this.legacyToken(deviceKey)
           : previous.token;
-      const registeredAtMs = this.clock.now();
+      // Same-token renewals advance this revision without changing the KV mirror generation.
+      const registrationMetadata = {
+        registeredAtMs: this.clock.now(),
+        registrationRevision: (previous?.registrationRevision ?? 0) + 1,
+      };
       if (currentToken === normalizedToken) {
-        if (previous?.registeredAtMs !== registeredAtMs) {
-          await this.persistAuthoritativeState({
-            generation: 0,
-            ...previous,
-            deviceKey,
-            token: normalizedToken,
-            registeredAtMs,
-          });
-        }
+        await this.persistAuthoritativeState({
+          generation: 0,
+          ...previous,
+          deviceKey,
+          token: normalizedToken,
+          ...registrationMetadata,
+        });
         return;
       }
 
@@ -306,7 +323,7 @@ export class DeviceRegistryCoordinatorCore
         generation,
         lastMirrorAtMs: previous?.lastMirrorAtMs,
       };
-      await this.scheduleMirror({ ...next, registeredAtMs }, {
+      await this.scheduleMirror({ ...next, ...registrationMetadata }, {
         generation,
         token: normalizedToken,
         dueAtMs,
@@ -319,6 +336,7 @@ export class DeviceRegistryCoordinatorCore
     deviceKey: string,
     expectedToken?: string,
     invalidatedAtMs?: number,
+    expectedRevision?: number,
   ): Promise<boolean> {
     return this.runExclusive(async () => {
       const previous = await this.readPersistedState();
@@ -333,8 +351,11 @@ export class DeviceRegistryCoordinatorCore
       if (expectedToken !== undefined && currentToken !== expectedToken) {
         return false;
       }
-      if (invalidatedAtMs !== undefined && previous?.registeredAtMs !== undefined &&
-        previous.registeredAtMs >= invalidatedAtMs) {
+      if (invalidatedAtMs !== undefined) {
+        if (previous?.registeredAtMs !== undefined && previous.registeredAtMs >= invalidatedAtMs) {
+          return false;
+        }
+      } else if (expectedRevision !== undefined && (previous?.registrationRevision ?? 0) !== expectedRevision) {
         return false;
       }
       if (currentToken === null) {
@@ -355,6 +376,7 @@ export class DeviceRegistryCoordinatorCore
         token: null,
         generation,
         lastMirrorAtMs: previous?.lastMirrorAtMs,
+        registrationRevision: previous?.registrationRevision,
       };
       await this.scheduleMirror(next, {
         generation,
@@ -386,6 +408,10 @@ export class DeviceRegistryCoordinator extends DurableObject<CoordinatorEnv> {
     return this.coordinator.deviceTokenByKey(deviceKey);
   }
 
+  deviceRegistrationByKey(deviceKey: string): Promise<DeviceRegistration | null> {
+    return this.coordinator.deviceRegistrationByKey(deviceKey);
+  }
+
   saveDeviceTokenByKey(deviceKey: string, token: string): Promise<void> {
     return this.coordinator.saveDeviceTokenByKey(deviceKey, token);
   }
@@ -394,8 +420,9 @@ export class DeviceRegistryCoordinator extends DurableObject<CoordinatorEnv> {
     deviceKey: string,
     expectedToken?: string,
     invalidatedAtMs?: number,
+    expectedRevision?: number,
   ): Promise<boolean> {
-    return this.coordinator.deleteDeviceByKey(deviceKey, expectedToken, invalidatedAtMs);
+    return this.coordinator.deleteDeviceByKey(deviceKey, expectedToken, invalidatedAtMs, expectedRevision);
   }
 
   alarm(): Promise<void> {

@@ -2,7 +2,7 @@ import { isJsonContentType } from "@/utils/content-type";
 import type { Context, Hono } from "hono";
 
 import { failed, getErrorMessage, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
-import type { AppConfig, ApnsSendError, ParamMap, PushMessage, RuntimeDeps } from "@/types";
+import type { AppConfig, ApnsSendError, DeviceRegistration, ParamMap, PushMessage, RuntimeDeps } from "@/types";
 import { readLimitedFormData, readLimitedText } from "@/utils/validation";
 import { isRecord, normalizeParamKeys } from "@/utils/objects";
 import { DeviceLookupError } from "@/services/device-registry-errors";
@@ -181,9 +181,9 @@ async function pushMessage(
     return { code: 400, error: new Error("device key is empty") };
   }
 
-  let deviceToken: string;
+  let registration: DeviceRegistration;
   try {
-    deviceToken = await options.deps.registry.deviceTokenByKey(message.deviceKey);
+    registration = await options.deps.registry.deviceRegistrationByKey(message.deviceKey);
   } catch (error) {
     if (!(error instanceof DeviceLookupError)) {
       console.error("Device token lookup failed", error);
@@ -195,6 +195,7 @@ async function pushMessage(
     };
   }
 
+  const deviceToken = registration.token;
   try {
     await options.deps.pushSender.send({
       ...message,
@@ -210,7 +211,8 @@ async function pushMessage(
         await options.deps.registry.deleteDeviceByKey(
           message.deviceKey,
           deviceToken,
-          normalized.invalidatedAtMs,
+          normalized.statusCode === 410 ? normalized.invalidatedAtMs : undefined,
+          registration.revision,
         );
       } catch (cleanupError) {
         console.error("Invalid device token cleanup failed", cleanupError);

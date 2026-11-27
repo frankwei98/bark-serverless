@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { DeviceRegistryCoordinatorCore } from "@/services/device-registry-coordinator";
+import { KVDeviceRegistry } from "@/services/kv-device-registry";
+import { createApnsError, createHarness } from "./helpers/fakes";
 
 function createStorage() {
   const values = new Map<string, unknown>();
@@ -142,6 +144,33 @@ describe("DeviceRegistryCoordinator", () => {
     expect(namespace.delete).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { status: 410, reason: "Unregistered", renewed: true, retained: "same-token" },
+    { status: 410, reason: "Unregistered", renewed: false, retained: null },
+    { status: 400, reason: "BadDeviceToken", renewed: true, retained: "same-token" },
+    { status: 400, reason: "BadDeviceToken", renewed: false, retained: null },
+  ])("handles APNs $status without a timestamp (renewed: $renewed)", async ({ status, reason, renewed, retained }) => {
+    const { storage } = createStorage();
+    const { namespace } = createNamespace({ "device:alpha": "same-token" });
+    const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => 4_000 });
+    const { app, deps, sender } = createHarness();
+    deps.registry = new KVDeviceRegistry({ list: vi.fn() }, () => coordinator);
+    if (renewed) {
+      await deps.registry.saveDeviceTokenByKey("alpha", "same-token");
+    }
+    sender.send = async () => {
+      if (renewed) {
+        await deps.registry.saveDeviceTokenByKey("alpha", "same-token");
+      }
+      throw createApnsError(reason, status);
+    };
+
+    await expect(app.request("/alpha/hello")).resolves.toMatchObject({ status: 500 });
+    const reloaded = new DeviceRegistryCoordinatorCore(storage, namespace);
+    await expect(reloaded.deviceTokenByKey("alpha")).resolves.toBe(retained);
+    expect(namespace.put).not.toHaveBeenCalled();
+  });
+
   it("does not acknowledge registration when atomic alarm scheduling fails", async () => {
     const { storage, values, rejectNextTransactionAlarm } = createStorage();
     values.set("registration", {
@@ -174,7 +203,14 @@ describe("DeviceRegistryCoordinator", () => {
     const { namespace } = createNamespace({ "device:alpha": "old" });
     const coordinator = new DeviceRegistryCoordinatorCore(storage, namespace, { now: () => 5_100 });
     await coordinator.saveDeviceTokenByKey("alpha", "new");
-    expect(values.get("registration")).toEqual({ deviceKey: "alpha", token: "new", generation: 4, lastMirrorAtMs: 5_000, registeredAtMs: 5_100 });
+    expect(values.get("registration")).toEqual({
+      deviceKey: "alpha",
+      token: "new",
+      generation: 4,
+      lastMirrorAtMs: 5_000,
+      registeredAtMs: 5_100,
+      registrationRevision: 1,
+    });
     expect(values.get("pendingMirror")).toEqual({ generation: 4, token: "new", dueAtMs: 6_000, failures: 0 });
     expect(getAlarm()).toBe(6_000);
     expect(namespace.put).not.toHaveBeenCalled();

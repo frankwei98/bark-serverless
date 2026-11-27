@@ -7,7 +7,7 @@ import {
   DEVICE_KEY_PREFIX,
   deviceStorageKey,
 } from "@/services/device-registry-storage";
-import type { DeviceRegistry } from "@/types";
+import type { DeviceRegistration, DeviceRegistry } from "@/types";
 
 const KV_MAX_KEY_BYTES = 512;
 const DEVICE_COUNT_CACHE_TTL_MS = 60 * 1000;
@@ -17,7 +17,7 @@ export class KVDeviceRegistry implements DeviceRegistry {
   private cachedCount: { value: number; expiresAt: number } | null = null;
 
   constructor(
-    private readonly namespace: KVNamespace,
+    private readonly namespace: Pick<KVNamespace, "list">,
     private readonly coordinatorForKey: (
       key: string,
     ) => DeviceRegistryCoordinatorStub,
@@ -57,14 +57,18 @@ export class KVDeviceRegistry implements DeviceRegistry {
   }
 
   async deviceTokenByKey(key: string): Promise<string> {
-    const token = await this.coordinatorForKey(key).deviceTokenByKey(key);
-    if (token === null) {
+    return (await this.deviceRegistrationByKey(key)).token;
+  }
+
+  async deviceRegistrationByKey(key: string): Promise<DeviceRegistration> {
+    const registration = await this.coordinatorForKey(key).deviceRegistrationByKey(key);
+    if (registration === null) {
       throw new DeviceLookupError("key not found");
     }
-    if (token.length === 0) {
+    if (registration.token.length === 0) {
       throw new DeviceLookupError("device token invalid");
     }
-    return token;
+    return registration;
   }
 
   async saveDeviceTokenByKey(key: string, token: string): Promise<string> {
@@ -74,11 +78,17 @@ export class KVDeviceRegistry implements DeviceRegistry {
     return nextKey;
   }
 
-  async deleteDeviceByKey(key: string, expectedToken?: string, invalidatedAtMs?: number): Promise<boolean> {
+  async deleteDeviceByKey(
+    key: string,
+    expectedToken?: string,
+    invalidatedAtMs?: number,
+    expectedRevision?: number,
+  ): Promise<boolean> {
     const deleted = await this.coordinatorForKey(key).deleteDeviceByKey(
       key,
       expectedToken,
       invalidatedAtMs,
+      expectedRevision,
     );
     if (deleted) {
       this.invalidateCountCache();

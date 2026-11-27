@@ -101,7 +101,7 @@ describe("push routes", () => {
 
   it.each(["/alpha/hello", "/register/alpha"])("reports storage failures safely at %s", async (path) => {
     const { app, registry, sender } = createHarness();
-    vi.spyOn(registry, "deviceTokenByKey").mockRejectedValue(new Error("private storage details"));
+    vi.spyOn(registry, "deviceRegistrationByKey").mockRejectedValue(new Error("private storage details"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const response = await app.request(path);
@@ -633,7 +633,7 @@ describe("push routes", () => {
     const remove = vi.spyOn(registry, "deleteDeviceByKey");
 
     await expect(app.request("/alpha/hello")).resolves.toMatchObject({ status: 500 });
-    expect(remove).toHaveBeenCalledWith("alpha", "gone-token", 4_000);
+    expect(remove).toHaveBeenCalledWith("alpha", "gone-token", 4_000, 0);
   });
 
   it("cleans up invalid tokens after APNs 410 failures", async () => {
