@@ -269,6 +269,25 @@ describe("CloudflareApnsClient", () => {
     expect(binary.length).toBe(64);
   });
 
+  it("shares one provider JWT across concurrent cold sends", async () => {
+    const { importKey, sign } = installCryptoStub();
+    const client = new CloudflareApnsClient({
+      privateKey: TEST_PKCS8_PRIVATE_KEY,
+      keyId: "KEYID123",
+      teamId: "TEAMID123",
+      topic: "me.fin.bark",
+    });
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await Promise.all(Array.from({ length: 20 }, () => client.send(createMessage())));
+
+    expect(importKey).toHaveBeenCalledOnce();
+    expect(sign).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(20);
+    expect(new Set(fetchMock.mock.calls.map(([, init]) => new Headers(init?.headers).get("authorization"))).size).toBe(1);
+  });
+
   it("reuses APNs provider JWTs within the refresh window", async () => {
     const { sign } = installCryptoStub(makeRawSignature());
     const now = vi.spyOn(Date, "now");
