@@ -21,6 +21,21 @@ describe("push routes", () => {
     expect(sender.messages).toHaveLength(0);
   });
 
+  it("parses vendor JSON for registration and legacy push paths", async () => {
+    const { app, sender } = createHarness();
+    const jsonPost = (body: object): RequestInit => ({
+      method: "POST",
+      headers: { "content-type": "application/vnd.bark+json; charset=utf-8" },
+      body: JSON.stringify(body),
+    });
+
+    await expect(app.request("/register", jsonPost({ device_key: "alpha", device_token: "token" })))
+      .resolves.toMatchObject({ status: 200 });
+    await expect(app.request("/alpha", jsonPost({ body: "vendor JSON" })))
+      .resolves.toMatchObject({ status: 200 });
+    expect(sender.messages[0]).toMatchObject({ deviceToken: "token", body: "vendor JSON" });
+  });
+
   it("keeps the path recipient above differently-cased JSON fields", async () => {
     const { app, sender } = createHarness({ registrySeed: { alpha: "token-alpha", beta: "token-beta" } });
     const response = await app.request("/alpha/path-body", {

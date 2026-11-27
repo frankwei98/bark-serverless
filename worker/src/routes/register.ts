@@ -1,3 +1,4 @@
+import { isJsonContentType } from "@/utils/content-type";
 import type { Context, Hono } from "hono";
 
 import { getErrorMessage, failed, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
@@ -28,9 +29,7 @@ function preferPrimaryField(primary: unknown, legacy: unknown): unknown {
 }
 
 async function parseRegisterBody(request: Request, maxBodyBytes: number): Promise<DeviceInfo> {
-  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
-
-  if (contentType.startsWith("application/json")) {
+  if (isJsonContentType(request.headers.get("content-type"))) {
     const raw = await readLimitedText(request, maxBodyBytes);
     if (raw.trim().length === 0) {
       return {};

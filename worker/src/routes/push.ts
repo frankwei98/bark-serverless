@@ -1,3 +1,4 @@
+import { isJsonContentType } from "@/utils/content-type";
 import type { Context, Hono } from "hono";
 
 import { failed, getErrorMessage, INTERNAL_ERROR_MESSAGE, success, withData } from "@/utils/responses";
@@ -18,10 +19,6 @@ export interface PushAttempt {
 }
 
 const BATCH_PUSH_CONCURRENCY = 50;
-
-function isJsonContentType(contentType: string): boolean {
-  return contentType.toLowerCase().startsWith("application/json");
-}
 
 type PathParamResult =
   | { ok: true; params: ParamMap }
@@ -350,8 +347,7 @@ async function routeDoPushV2(c: Context, options: PushRouteOptions) {
 }
 
 async function routeDoPush(c: Context, options: PushRouteOptions) {
-  const contentType = c.req.header("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
-  if (isJsonContentType(contentType)) {
+  if (isJsonContentType(c.req.header("content-type"))) {
     return routeDoPushV2(c, options);
   }
 
