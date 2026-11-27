@@ -473,6 +473,12 @@ async function handleMcpRequest(
   }
 
   switch (body.method) {
+    case "ping":
+      return {
+        kind: "response",
+        body: { jsonrpc: "2.0", id, result: {} },
+      };
+
     case "initialize": {
       const clientVersion = (body.params as Record<string, unknown> | undefined)
         ?.protocolVersion as string | undefined;
