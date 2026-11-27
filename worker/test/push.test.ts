@@ -63,6 +63,31 @@ describe("push routes", () => {
     expect(sender.messages[0]).toMatchObject({ deviceKey: "alpha", body: "path-body" });
   });
 
+  it("uses JSON body values before query values and keeps path values last", async () => {
+    const { app, sender } = createHarness({
+      registrySeed: { alpha: "token-alpha", beta: "token-beta" },
+    });
+    const jsonHeaders = { "content-type": "application/vnd.bark+json; charset=utf-8" };
+
+    const bodyWins = await app.request("/push?device_key=alpha", {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({ device_key: "beta", body: "from body" }),
+    });
+    expect(bodyWins.status).toBe(200);
+
+    const pathWins = await app.request("/alpha/path-body?body=query", {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({ device_key: "beta", body: "from body" }),
+    });
+    expect(pathWins.status).toBe(200);
+    expect(sender.messages.map(({ deviceKey, body }) => ({ deviceKey, body }))).toEqual([
+      { deviceKey: "beta", body: "from body" },
+      { deviceKey: "alpha", body: "path-body" },
+    ]);
+  });
+
   it("keeps batch recipients above differently-cased JSON fields", async () => {
     const { app, sender } = createHarness({ registrySeed: { alpha: "token-alpha", beta: "token-beta" } });
     const response = await app.request("/push", {

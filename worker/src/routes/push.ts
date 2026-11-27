@@ -316,7 +316,8 @@ async function routeDoPushV2(c: Context, options: PushRouteOptions) {
     );
   }
 
-  Object.assign(params, lowerCaseEntryMap(new URL(c.req.url).searchParams.entries()));
+  const queryParams = lowerCaseEntryMap(new URL(c.req.url).searchParams.entries());
+  params = Object.assign(Object.create(null), queryParams, params);
   const pathParams = extractPathParams(c);
   if (!pathParams.ok) {
     return c.json(failed(options.deps.now(), 400, pathParams.message), 400);
