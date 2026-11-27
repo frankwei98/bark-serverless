@@ -109,6 +109,6 @@ describe("KVDeviceRegistry count caching", () => {
     ).resolves.toBe(false);
 
     expect(coordinatorForKey).toHaveBeenCalledWith("alpha");
-    expect(stub.deleteDeviceByKey).toHaveBeenCalledWith("alpha", "old-token");
+    expect(stub.deleteDeviceByKey).toHaveBeenCalledWith("alpha", "old-token", undefined);
   });
 });

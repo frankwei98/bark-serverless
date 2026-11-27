@@ -85,7 +85,7 @@ describe("provider routing and public Bark API", () => {
     };
     const remove = vi.spyOn(registry, "deleteDeviceByKey");
     expect((await app.request("http://example.com/ios/hello")).status).toBe(500);
-    expect(remove).toHaveBeenCalledWith("ios", "ios-token");
+    expect(remove).toHaveBeenCalledWith("ios", "ios-token", undefined);
     expect(registry.snapshot().ios).toBe("harmony:new-token");
   });
 

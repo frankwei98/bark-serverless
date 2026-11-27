@@ -78,7 +78,7 @@ export class KVDeviceRegistry implements DeviceRegistry {
     const deleted = await this.coordinatorForKey(key).deleteDeviceByKey(
       key,
       expectedToken,
-      ...(invalidatedAtMs === undefined ? [] : [invalidatedAtMs]),
+      invalidatedAtMs,
     );
     if (deleted) {
       this.invalidateCountCache();

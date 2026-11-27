@@ -577,6 +577,17 @@ describe("push routes", () => {
     expect(registry.snapshot()).toEqual({});
   });
 
+  it("passes the APNs invalidation time to device cleanup", async () => {
+    const { app, registry, sender } = createHarness({ registrySeed: { alpha: "gone-token" } });
+    const failure = createApnsError("Unregistered", 410);
+    failure.invalidatedAtMs = 4_000;
+    sender.failForDeviceToken("gone-token", failure);
+    const remove = vi.spyOn(registry, "deleteDeviceByKey");
+
+    await expect(app.request("/alpha/hello")).resolves.toMatchObject({ status: 500 });
+    expect(remove).toHaveBeenCalledWith("alpha", "gone-token", 4_000);
+  });
+
   it("cleans up invalid tokens after APNs 410 failures", async () => {
     const { app, registry, sender } = createHarness({
       registrySeed: {
