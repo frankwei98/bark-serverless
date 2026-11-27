@@ -35,7 +35,7 @@ function stripPrefix(pathname: string, prefix: string): string {
     return pathname || "/";
   }
 
-  if (!pathname.startsWith(normalizedPrefix)) {
+  if (pathname !== normalizedPrefix && !pathname.startsWith(`${normalizedPrefix}/`)) {
     return pathname || "/";
   }
 
@@ -74,7 +74,7 @@ export function createBasicAuthMiddleware(config: AppConfig): MiddlewareHandler 
       return;
     }
 
-    const pathname = new URL(c.req.url).pathname;
+    const pathname = c.req.path;
     const relativePath = stripPrefix(pathname, config.urlPrefix);
 
     if (isAuthFreeRoute(c.req.method, relativePath)) {

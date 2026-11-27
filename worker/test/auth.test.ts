@@ -37,6 +37,26 @@ describe("basic auth compatibility", () => {
     });
   });
 
+  it("uses the same trailing slash policy for fixed routes and Basic Auth", async () => {
+    const { app, sender } = createHarness({
+      config: { basicAuthUser: "demo", basicAuthPassword: "secret", urlPrefix: "/bark" },
+      registrySeed: { push: "wrong-token", recipient: "right-token" },
+    });
+    await expect(app.request("/bark/ping/")).resolves.toMatchObject({ status: 200 });
+    await expect(app.request("/bark/register/?devicetoken=abc")).resolves.toMatchObject({ status: 200 });
+    const request = {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_key: "recipient", body: "hello" }),
+    };
+    await expect(app.request("/bark/push/", request)).resolves.toMatchObject({ status: 418 });
+    await expect(app.request("/bark/push/", {
+      ...request,
+      headers: { ...request.headers, authorization: createBasicAuthHeader("demo", "secret") },
+    })).resolves.toMatchObject({ status: 200 });
+    expect(sender.messages.map((message) => message.deviceToken)).toEqual(["right-token"]);
+  });
+
   it("blocks auth-free path prefixes that fall through to push routes", async () => {
     const { app, sender } = createHarness({
       config: {
