@@ -15,7 +15,7 @@ export interface CreateAppOptions {
 }
 
 function createRouteGroup(options: CreateAppOptions): Hono {
-  const app = new Hono();
+  const app = new Hono({ strict: false });
 
   app.get("/", (c) => {
     c.header("content-type", "text/plain; charset=UTF-8");
@@ -60,7 +60,7 @@ function createRouteGroup(options: CreateAppOptions): Hono {
 }
 
 export function createApp(options: CreateAppOptions): Hono {
-  const app = new Hono();
+  const app = new Hono({ strict: false });
   const prefix = normalizeUrlPrefix(options.config.urlPrefix);
 
   app.use("*", async (c, next) => {

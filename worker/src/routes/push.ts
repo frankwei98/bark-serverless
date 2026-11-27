@@ -369,9 +369,7 @@ export function registerPushRoutes(app: Hono, options: PushRouteOptions): void {
   ];
 
   for (const path of handlers) {
-    for (const variant of [path, `${path}/`]) {
-      app.get(variant, (c) => routeDoPush(c, options));
-      app.post(variant, (c) => routeDoPush(c, options));
-    }
+    app.get(path, (c) => routeDoPush(c, options));
+    app.post(path, (c) => routeDoPush(c, options));
   }
 }
